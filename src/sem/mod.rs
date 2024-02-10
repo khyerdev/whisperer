@@ -4,11 +4,14 @@ mod matrix;
 use matrix::Matrix;
 use crate::square_matrix;
 
-pub fn encrypt<T>(bytes: T) -> Vec<u8>
+pub fn encrypt<T, K>(bytes: T, key: K) -> Vec<u8>
 where
-    T: Into<Vec<u8>>
+    T: Into<Vec<u8>>,
+    K: Into<Vec<u8>>
 {
     let bytes: Vec<u8> = bytes.into();
+    let key: Vec<u8> = key.into();
+
     let blocklength = (bytes.len() as f32).sqrt().ceil() as usize;
     let mut block: Matrix<u8> = square_matrix!(u8, blocklength);
     let mut encrypted: Vec<u8> = Vec::new();
@@ -26,17 +29,24 @@ where
         }
     });
 
-    encrypted
+    let keylen = key.len();
+    encrypted.iter().enumerate().map(|(i, v)| v ^ key[i % keylen] ).collect()
 }
 
-pub fn decrypt<T>(bytes: T) -> Vec<u8>
+pub fn decrypt<T, K>(bytes: T, key: K) -> Vec<u8>
 where
-    T: Into<Vec<u8>>
+    T: Into<Vec<u8>>,
+    K: Into<Vec<u8>>
 {
     let bytes: Vec<u8> = bytes.into();
+    let key: Vec<u8> = key.into();
+
     let blocklength = (bytes.len() as f32).sqrt().ceil() as usize;
     let mut block: Matrix<u8> = square_matrix!(u8, blocklength);
     let mut decrypted: Vec<u8> = Vec::new();
+
+    let keylen = key.len();
+    let bytes: Vec<u8> = bytes.iter().enumerate().map(|(i, v)| v ^ key[i % keylen] ).collect();
 
     let mut enc_iter = bytes.iter();
     (0usize..blocklength).for_each(|_| {
