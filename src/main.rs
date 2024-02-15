@@ -1,7 +1,9 @@
 mod vector;
-mod sem;
+mod kem;
+mod tcp;
 
 use vector as vect;
+use tcp::StreamWrapper;
 use std::net::{TcpListener, TcpStream};
 use std::io::{Read, Write};
 use std::thread;
@@ -51,7 +53,7 @@ fn main() {
         let message = "you will be forever alone";
         println!("Sent: {message}");
         let bytes = vect::bytes_from_string(message);
-        let bytes = sem::encrypt(bytes, private_key);
+        let bytes = kem::encrypt(bytes, private_key);
 
         stream.write_all(&["MESSAGE\0".as_bytes(), &bytes, &[255u8]].concat()).unwrap();
         let mut empty = [0u8; 1];
@@ -89,7 +91,7 @@ fn main() {
                     },
                     "MESSAGE" => {
                         let key = &private_key;
-                        let message = sem::decrypt(data, key.clone());
+                        let message = kem::decrypt(data, key.clone());
                         let message = vect::bytes_to_string(message);
                         println!("Got: {message}");
                         stream.write_all(&[0u8]).unwrap()
@@ -99,10 +101,4 @@ fn main() {
             }
         }
     }
-}
-
-fn _read_buffer(stream: &mut TcpStream) -> String {
-    let mut buf: Vec<u8> = Vec::new();
-    stream.read(&mut buf).unwrap();
-    String::from_utf8_lossy(&buf).to_string()
 }

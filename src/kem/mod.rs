@@ -1,4 +1,4 @@
-//! Syntharic Encryption Module
+//! Khyernet Encryption Module
 #![allow(unused)]
 mod matrix;
 use matrix::Matrix;
