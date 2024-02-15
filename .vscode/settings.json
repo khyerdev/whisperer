@@ -1,6 +1,11 @@
 {
     "rust-analyzer.linkedProjects": [
+<<<<<<< HEAD
         ".\\Cargo.toml"
     ],
     "rust-analyzer.showUnlinkedFileNotification": false
+=======
+        "./Cargo.toml"
+    ]
+>>>>>>> 1f28190 (ignore .vscode)
 }
