@@ -33,3 +33,34 @@ pub fn bytes_to_string<V: Into<Vec<u8>>>(bytes: V) -> String {
 pub fn remove_null(bytes: Vec<u8>) -> Vec<u8> {
     bytes.iter().filter(|b| **b != 0).map(|b| *b).collect()
 }
+
+pub fn erase_until_terminator<T>(vec: &mut Vec<T>, term: T) -> Vec<T>
+where
+    T: Sized + Copy + std::cmp::PartialEq
+{
+    assert!(vec.len() > 0);
+    let mut erased: Vec<T> = Vec::new();
+    let len = vec.len()-1;
+    for _ in 0..len {
+        let obj: T = vec.remove(0);
+        if obj == term {break};
+        erased.push(obj);
+    }
+    erased
+}
+
+pub fn truncate_until_terminator<T>(vec: &mut Vec<T>, term: T) -> Vec<T>
+where
+    T: Sized + Copy + std::cmp::PartialEq
+{
+    assert!(vec.len() > 0);
+    let mut erased: Vec<T> = Vec::new();
+    let mut i = vec.len()-1;
+    loop {
+        let obj: T = vec.remove(i);
+        if obj == term {break};
+        erased.push(obj);
+        i -= 1;
+    }
+    erased
+}
