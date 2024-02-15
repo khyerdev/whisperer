@@ -6,16 +6,19 @@ use std::net::{TcpListener, TcpStream};
 use std::io::{Read, Write};
 use std::thread;
 
+const MAX_CONTENT_LENGTH: usize = 2048;
+const KEY_SIZE: usize = 16;
+
 fn main() {
     let port = TcpListener::bind("0.0.0.0:9998").unwrap();
     
     thread::spawn(|| {
         let mut stream = TcpStream::connect("192.168.40.126:9998").unwrap();
 
-        let public_key = vect::rand_byte_vector(16);
+        let public_key = vect::rand_byte_vector(KEY_SIZE);
         stream.write_all(&["PUBLICKEY\0".as_bytes(), &public_key, &[255u8]].concat()).unwrap();
         
-        let mut recv_key = [0u8; 2048];
+        let mut recv_key = [0u8; MAX_CONTENT_LENGTH];
         stream.read(&mut recv_key).unwrap();
         let mut recv_key = recv_key.to_vec();
         vect::truncate_until_terminator(&mut recv_key, 255u8);
@@ -23,7 +26,7 @@ fn main() {
 
         let mut stream = TcpStream::connect("192.168.40.126:9998").unwrap();
 
-        let base_key = vect::rand_byte_vector(16);
+        let base_key = vect::rand_byte_vector(KEY_SIZE);
         let combined_key = vect::and_vector(base_key.clone(), public_key);
         stream.write_all(&["COMBINEKEY\0".as_bytes(), &combined_key, &[255u8]].concat()).unwrap();
 
@@ -49,13 +52,13 @@ fn main() {
         drop(stream);
     });
     
-    let base_key = vect::rand_byte_vector(16);
+    let base_key = vect::rand_byte_vector(KEY_SIZE);
     let mut private_key: Vec<u8> = Vec::new();
 
     for req in port.incoming() {
         let mut stream = req.unwrap();
 
-        let mut data = [0u8; 2048];
+        let mut data = [0u8; MAX_CONTENT_LENGTH];
         stream.read(&mut data).unwrap();
         let mut data = data.to_vec();
         vect::truncate_until_terminator(&mut data, 255u8);
