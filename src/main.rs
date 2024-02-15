@@ -2,26 +2,28 @@ mod vector;
 mod sem;
 
 use vector as vect;
+use std::net::{TcpListener, TcpStream};
+use std::io::{Read, Write, BufReader, BufWriter};
+use std::thread;
 
 fn main() {
-    let key = vect::rand_byte_vector(12);
+    let port = TcpListener::bind("0.0.0.0:9998").unwrap();
+    
+    thread::spawn(|| {
+        thread::sleep(std::time::Duration::from_secs(2));
+        let mut connection = TcpStream::connect("192.168.40.126:9998").unwrap();
+    
+        connection.write_all("test".as_bytes()).unwrap();
+        println!("sent");
 
-    let string = "machine, i will cut you down, break you apart, splay the gore of your profaned form across the stars. i will grind you down until the very sparks cry for mercy. my hands shill relish, ending you, here, and, now!";
-    println!("{string}");
-    let bytes = vect::bytes_from_string(string);
-
-    let encrypted = sem::encrypt(bytes, key.clone());
-
-    let obufuscated = encrypted.clone();
-    {
-        let obufuscated = vect::bytes_to_string(obufuscated);
-        println!("{obufuscated}");
+        let mut buf = String::new();
+        connection.read_to_string(&mut buf).unwrap();
+        println!("{buf}")
+    });
+    
+    for req in port.incoming() {
+        let mut stream = req.unwrap();
+        stream.write_all("response".as_bytes()).unwrap();
+        println!("responded");
     }
-
-    let decrypted = sem::decrypt(encrypted, key);
-    let renewed = {
-        let no_null = vect::remove_null(decrypted);
-        vect::bytes_to_string(no_null)
-    };
-    println!("{renewed}");
 }
