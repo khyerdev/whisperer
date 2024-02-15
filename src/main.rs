@@ -10,42 +10,28 @@ use std::sync::{Arc, Mutex};
 
 const MAX_CONTENT_LENGTH: usize = 2048;
 const KEY_SIZE: usize = 16;
+const TEST_IP: &'static str = "192.168.40.126:9998";
 
 fn main() {
     let port = TcpListener::bind("0.0.0.0:9998").unwrap();
     
     thread::spawn(|| {
-        tcp::check_availability("192.168.40.126:9998", || {});
+        tcp::check_availability(TEST_IP).unwrap();
 
         let public_key = vect::rand_byte_vector(KEY_SIZE);
-
-
-        let mut stream = TcpStream::connect("192.168.40.126:9998").unwrap();
+        let recv_key = tcp::send_public_key(TEST_IP, public_key.clone()).unwrap();
 
         let base_key = vect::rand_byte_vector(KEY_SIZE);
-        let combined_key = vect::and_vector(base_key.clone(), public_key);
-        stream.write_all(&["COMBINEKEY\0".as_bytes(), &combined_key, &[255u8]].concat()).unwrap();
-
-        let mut empty = [0u8; 1];
-        stream.read(&mut empty).unwrap();
-        drop(stream);
-        assert_eq!(empty, [0u8]);
-
-        let private_key = vect::and_vector(base_key, recv_key);
-
+        let private_key = vect::and_vector(base_key.clone(), recv_key);
         println!("{:?}", private_key.clone());
-
-        let mut stream = TcpStream::connect("192.168.40.126:9998").unwrap();
+        
+        let combined_key = vect::and_vector(base_key, public_key);
+        tcp::send_mixed_key(TEST_IP, combined_key).unwrap();
 
         let message = "you will be forever alone";
         println!("Sent: {message}");
-        let bytes = vect::bytes_from_string(message);
-        let bytes = kem::encrypt(bytes, private_key);
 
-        stream.write_all(&["MESSAGE\0".as_bytes(), &bytes, &[255u8]].concat()).unwrap();
-        let mut empty = [0u8; 1];
-        stream.read(&mut empty).unwrap();
-        drop(stream);
+        tcp::encrypted_send(TEST_IP, message, private_key).unwrap();
     });
     
     let base_key = Arc::new(vect::rand_byte_vector(KEY_SIZE));
