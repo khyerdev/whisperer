@@ -6,9 +6,13 @@
 pub mod vector;
 
 use vector as vect;
-use std::net::TcpStream;
-use std::io::prelude::*;
-use std::io::{Error, ErrorKind};
+use std::{
+    net::TcpStream,
+    io::{
+        prelude::*,
+        Error, ErrorKind
+    }
+};
 use crate::kem;
 
 /// The maximum content length for tcp transfers, data loss will happen if this is exceeded
@@ -18,11 +22,24 @@ pub trait StreamReader {
     /// Handle incoming data. You are expected to respond to `PublicKey` by returning a mixed key.
     /// You are also expected to build your private key from `CombineKey`.
     /// This will panic if something goes wrong, I suggest using it in a thread.
-    fn parse_incoming(&mut self, action: impl FnOnce(Protocol, Vec<u8>));
+    fn parse_incoming(&mut self, action: impl FnOnce(&mut Self, Protocol, Vec<u8>));
 }
 impl StreamReader for TcpStream {
-    fn parse_incoming(&mut self, action: impl FnOnce(Protocol, Vec<u8>)) {
-        todo!()
+    fn parse_incoming(&mut self, action: impl FnOnce(&mut Self, Protocol, Vec<u8>)) {
+        let mut data = [0u8; MAX_CONTENT_LENGTH];
+        self.read(&mut data).unwrap();
+        let mut data = data.to_vec();
+
+        match data[0] {
+            22u8 => self.write_all(&[6u8]).unwrap(),
+            _ => {
+                vect::truncate_until_terminator(&mut data, 255u8);
+                let protocol = vect::erase_until_terminator(&mut data, 0u8);
+                let protocol = vect::bytes_to_string(protocol);
+        
+                action(self, Protocol::from(protocol), data);
+            }
+        }
     }
 }
 
@@ -38,7 +55,7 @@ pub fn check_availability(ip: &str) -> Result<(), Error> {
 }
 /// Send an encrypted message using khyernet's custom protocol.
 pub fn encrypted_send(ip: &str, message: &str, key: Vec<u8>) -> Result<(), Error> {
-    let mut stream = TcpStream::connect("192.168.40.126:9998")?;
+    let mut stream = TcpStream::connect(ip)?;
 
     let bytes = vect::bytes_from_string(message);
     let bytes = kem::encrypt(bytes, key);
@@ -102,3 +119,6 @@ fn ack_response(response: [u8; 1]) -> Result<(), Error> {
         _ => Err(Error::new(ErrorKind::ConnectionRefused, "Receiving end did not acknowledge"))
     }
 }
+
+#[cfg(test)]
+mod tests;
