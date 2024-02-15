@@ -14,6 +14,13 @@ fn main() {
     
     thread::spawn(|| {
         let mut stream = TcpStream::connect("192.168.40.126:9998").unwrap();
+        stream.write_all(&[22u8]).unwrap();
+        let mut ack = [0u8; 1];
+        stream.read(&mut ack).unwrap();
+        assert_eq!(ack, [6u8]);
+
+        drop(stream);
+        let mut stream = TcpStream::connect("192.168.40.126:9998").unwrap();
 
         let public_key = vect::rand_byte_vector(KEY_SIZE);
         stream.write_all(&["PUBLICKEY\0".as_bytes(), &public_key, &[255u8]].concat()).unwrap();
@@ -61,31 +68,36 @@ fn main() {
         let mut data = [0u8; MAX_CONTENT_LENGTH];
         stream.read(&mut data).unwrap();
         let mut data = data.to_vec();
-        vect::truncate_until_terminator(&mut data, 255u8);
-        let protocol = vect::erase_until_terminator(&mut data, 0u8);
-        let protocol = vect::bytes_to_string(protocol);
-        let protocol = protocol.as_str();
-
-        match protocol {
-            "PUBLICKEY" => {
-                let base = &base_key;
-                let combined_key = vect::and_vector(base.clone(), data);
-                stream.write_all(&[combined_key.as_slice(), &[255u8]].concat()).unwrap();
-            },
-            "COMBINEKEY" => {
-                private_key = vect::and_vector(base_key.clone(), data);
-                stream.write_all(&[0u8]).unwrap();
-                println!("{:?}", private_key);
-            },
-            "MESSAGE" => {
-                let key = &private_key;
-                let message = sem::decrypt(data, key.clone());
-                let message = vect::bytes_to_string(message);
-                println!("Got: {message}");
-                stream.write_all(&[0u8]).unwrap()
-            },
-            _ => stream.write_all(&[0u8]).unwrap()
-        }        
+        match data[0] {
+            22u8 => stream.write_all(&[6u8]).unwrap(),
+            _ => {
+                vect::truncate_until_terminator(&mut data, 255u8);
+                let protocol = vect::erase_until_terminator(&mut data, 0u8);
+                let protocol = vect::bytes_to_string(protocol);
+                let protocol = protocol.as_str();
+        
+                match protocol {
+                    "PUBLICKEY" => {
+                        let base = &base_key;
+                        let combined_key = vect::and_vector(base.clone(), data);
+                        stream.write_all(&[combined_key.as_slice(), &[255u8]].concat()).unwrap();
+                    },
+                    "COMBINEKEY" => {
+                        private_key = vect::and_vector(base_key.clone(), data);
+                        stream.write_all(&[0u8]).unwrap();
+                        println!("{:?}", private_key);
+                    },
+                    "MESSAGE" => {
+                        let key = &private_key;
+                        let message = sem::decrypt(data, key.clone());
+                        let message = vect::bytes_to_string(message);
+                        println!("Got: {message}");
+                        stream.write_all(&[0u8]).unwrap()
+                    },
+                    _ => stream.write_all(&[0u8]).unwrap()
+                }        
+            }
+        }
     }
 }
 
