@@ -13,8 +13,7 @@ fn main() {
         let mut stream = TcpStream::connect("192.168.40.126:9998").unwrap();
 
         let public_key = vect::rand_byte_vector(16);
-        let send = ["PUBLICKEY\0".as_bytes(), &public_key, &[255u8]].concat();
-        stream.write_all(&send).unwrap();
+        stream.write_all(&["PUBLICKEY\0".as_bytes(), &public_key, &[255u8]].concat()).unwrap();
         
         let mut recv_key = [0u8; 2048];
         stream.read(&mut recv_key).unwrap();
@@ -35,7 +34,19 @@ fn main() {
 
         let private_key = vect::and_vector(base_key, recv_key);
 
-        println!("{:?}", private_key);
+        println!("{:?}", private_key.clone());
+
+        let mut stream = TcpStream::connect("192.168.40.126:9998").unwrap();
+
+        let message = "you will be forever alone";
+        println!("Sent: {message}");
+        let bytes = vect::bytes_from_string(message);
+        let bytes = sem::encrypt(bytes, private_key);
+
+        stream.write_all(&["MESSAGE\0".as_bytes(), &bytes, &[255u8]].concat()).unwrap();
+        let mut empty = [0u8; 1];
+        stream.read(&mut empty).unwrap();
+        drop(stream);
     });
     
     let base_key = vect::rand_byte_vector(16);
@@ -64,7 +75,11 @@ fn main() {
                 println!("{:?}", private_key);
             },
             "MESSAGE" => {
-                
+                let key = &private_key;
+                let message = sem::decrypt(data, key.clone());
+                let message = vect::bytes_to_string(message);
+                println!("Got: {message}");
+                stream.write_all(&[0u8]).unwrap()
             },
             _ => stream.write_all(&[0u8]).unwrap()
         }        
