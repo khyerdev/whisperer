@@ -1,8 +1,7 @@
-mod vector;
 mod kem;
 mod tcp;
 
-use vector as vect;
+use tcp::vector as vect;
 use tcp::StreamReader;
 use std::net::{TcpListener, TcpStream};
 use std::io::{Read, Write};
@@ -17,16 +16,9 @@ fn main() {
     
     thread::spawn(|| {
         tcp::check_availability("192.168.40.126:9998", || {});
-        let mut stream = TcpStream::connect("192.168.40.126:9998").unwrap();
 
         let public_key = vect::rand_byte_vector(KEY_SIZE);
-        stream.write_all(&["PUBLICKEY\0".as_bytes(), &public_key, &[255u8]].concat()).unwrap();
-        
-        let mut recv_key = [0u8; MAX_CONTENT_LENGTH];
-        stream.read(&mut recv_key).unwrap();
-        let mut recv_key = recv_key.to_vec();
-        vect::truncate_until_terminator(&mut recv_key, 255u8);
-        drop(stream);
+
 
         let mut stream = TcpStream::connect("192.168.40.126:9998").unwrap();
 

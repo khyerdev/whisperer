@@ -42,13 +42,22 @@ pub fn check_availability(ip: &str, error_handler: impl FnOnce()) {
 }
 /// Send an encrypted message using khyernet's custom protocol.
 /// Run `error_handler` if it fails
-//pub fn send_encrypted(ip: &str, message: &str, error_handler: impl FnOnce()) {}
+pub fn send_encrypted(ip: &str, message: &str, error_handler: impl FnOnce()) {}
 /// Send a public key to the other end, expect the other end's mixed key back.
 /// Run `error_handler` if it fails
-//pub fn send_public_key(ip: &str, key: Vec<u8>, error_handler: impl FnOnce()) -> Vec<u8> {}
+pub fn send_public_key(ip: &str, key: Vec<u8>, error_handler: impl FnOnce()) -> Vec<u8> {
+    let mut stream = TcpStream::connect("192.168.40.126:9998").unwrap();
+    
+    stream.write_all(&["PUBLICKEY\0".as_bytes(), key, &[255u8]].concat()).unwrap();
+        
+    let mut recv_key = [0u8; MAX_CONTENT_LENGTH];
+    stream.read(&mut recv_key).unwrap();
+    let mut recv_key = recv_key.to_vec();
+    vect::truncate_until_terminator(&mut recv_key, 255u8);
+}
 /// Send a mixed key to the other end, expect the other end to form their private key.
 /// Run `error_handler` if it fails
-//pub fn send_mixed_key(ip: &str, key: Vec<u8>, error_handler: impl FnOnce()) {}
+pub fn send_mixed_key(ip: &str, key: Vec<u8>, error_handler: impl FnOnce()) {}
 
 pub enum Protocol {
     PublicKey, CombineKey, Message, Unknown
