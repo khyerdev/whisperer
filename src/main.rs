@@ -7,6 +7,7 @@ use tcp::StreamReader;
 use std::net::{TcpListener, TcpStream};
 use std::io::{Read, Write};
 use std::thread;
+use std::sync::{Arc, Mutex};
 
 const MAX_CONTENT_LENGTH: usize = 2048;
 const KEY_SIZE: usize = 16;
@@ -15,13 +16,7 @@ fn main() {
     let port = TcpListener::bind("0.0.0.0:9998").unwrap();
     
     thread::spawn(|| {
-        let mut stream = TcpStream::connect("192.168.40.126:9998").unwrap();
-        stream.write_all(&[22u8]).unwrap();
-        let mut ack = [0u8; 1];
-        stream.read(&mut ack).unwrap();
-        assert_eq!(ack, [6u8]);
-
-        drop(stream);
+        tcp::check_availability("192.168.40.126:9998", || {});
         let mut stream = TcpStream::connect("192.168.40.126:9998").unwrap();
 
         let public_key = vect::rand_byte_vector(KEY_SIZE);
@@ -61,11 +56,14 @@ fn main() {
         drop(stream);
     });
     
-    let base_key = vect::rand_byte_vector(KEY_SIZE);
-    let mut private_key: Vec<u8> = Vec::new();
+    let base_key = Arc::new(vect::rand_byte_vector(KEY_SIZE));
+    let private_key: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
 
     for req in port.incoming() {
-        thread::spawn(|| {
+        let base_key = Arc::clone(&base_key);
+        let private_key = Arc::clone(&private_key);
+
+        thread::spawn(move || {
             let mut stream = req.unwrap();
 
             let mut data = [0u8; MAX_CONTENT_LENGTH];
@@ -81,16 +79,24 @@ fn main() {
             
                     match protocol {
                         "PUBLICKEY" => {
-                            let combined_key = vect::and_vector(base_key.clone(), data);
+                            let combined_key = vect::and_vector(base_key.to_vec(), data);
                             stream.write_all(&[combined_key.as_slice(), &[255u8]].concat()).unwrap();
                         },
                         "COMBINEKEY" => {
-                            private_key = vect::and_vector(base_key.clone(), data);
+                            let mut mutex = private_key.lock().unwrap();
+                            *mutex = vect::and_vector(base_key.to_vec(), data);
+                            drop(mutex);
+
                             stream.write_all(&[0u8]).unwrap();
-                            println!("{:?}", private_key);
+                            println!("{:?}", &private_key);
                         },
                         "MESSAGE" => {
-                            let message = kem::decrypt(data, private_key.clone());
+                            let key = {
+                                let mutex = private_key.lock().unwrap();
+                                mutex.clone()
+                            };
+
+                            let message = kem::decrypt(data, key);
                             let message = vect::bytes_to_string(message);
                             println!("Got: {message}");
                             stream.write_all(&[0u8]).unwrap()
