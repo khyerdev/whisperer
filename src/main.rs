@@ -3,7 +3,7 @@ mod kem;
 mod tcp;
 
 use vector as vect;
-use tcp::StreamWrapper;
+use tcp::StreamReader;
 use std::net::{TcpListener, TcpStream};
 use std::io::{Read, Write};
 use std::thread;
@@ -65,40 +65,40 @@ fn main() {
     let mut private_key: Vec<u8> = Vec::new();
 
     for req in port.incoming() {
-        let mut stream = req.unwrap();
+        thread::spawn(|| {
+            let mut stream = req.unwrap();
 
-        let mut data = [0u8; MAX_CONTENT_LENGTH];
-        stream.read(&mut data).unwrap();
-        let mut data = data.to_vec();
-        match data[0] {
-            22u8 => stream.write_all(&[6u8]).unwrap(),
-            _ => {
-                vect::truncate_until_terminator(&mut data, 255u8);
-                let protocol = vect::erase_until_terminator(&mut data, 0u8);
-                let protocol = vect::bytes_to_string(protocol);
-                let protocol = protocol.as_str();
-        
-                match protocol {
-                    "PUBLICKEY" => {
-                        let base = &base_key;
-                        let combined_key = vect::and_vector(base.clone(), data);
-                        stream.write_all(&[combined_key.as_slice(), &[255u8]].concat()).unwrap();
-                    },
-                    "COMBINEKEY" => {
-                        private_key = vect::and_vector(base_key.clone(), data);
-                        stream.write_all(&[0u8]).unwrap();
-                        println!("{:?}", private_key);
-                    },
-                    "MESSAGE" => {
-                        let key = &private_key;
-                        let message = kem::decrypt(data, key.clone());
-                        let message = vect::bytes_to_string(message);
-                        println!("Got: {message}");
-                        stream.write_all(&[0u8]).unwrap()
-                    },
-                    _ => stream.write_all(&[0u8]).unwrap()
-                }        
+            let mut data = [0u8; MAX_CONTENT_LENGTH];
+            stream.read(&mut data).unwrap();
+            let mut data = data.to_vec();
+            match data[0] {
+                22u8 => stream.write_all(&[6u8]).unwrap(),
+                _ => {
+                    vect::truncate_until_terminator(&mut data, 255u8);
+                    let protocol = vect::erase_until_terminator(&mut data, 0u8);
+                    let protocol = vect::bytes_to_string(protocol);
+                    let protocol = protocol.as_str();
+            
+                    match protocol {
+                        "PUBLICKEY" => {
+                            let combined_key = vect::and_vector(base_key.clone(), data);
+                            stream.write_all(&[combined_key.as_slice(), &[255u8]].concat()).unwrap();
+                        },
+                        "COMBINEKEY" => {
+                            private_key = vect::and_vector(base_key.clone(), data);
+                            stream.write_all(&[0u8]).unwrap();
+                            println!("{:?}", private_key);
+                        },
+                        "MESSAGE" => {
+                            let message = kem::decrypt(data, private_key.clone());
+                            let message = vect::bytes_to_string(message);
+                            println!("Got: {message}");
+                            stream.write_all(&[0u8]).unwrap()
+                        },
+                        _ => stream.write_all(&[0u8]).unwrap()
+                    }        
+                }
             }
-        }
+        });
     }
 }
