@@ -120,5 +120,11 @@ fn ack_response(response: [u8; 1]) -> Result<(), Error> {
     }
 }
 
+pub fn get_local_ip() -> String {
+    let socket = std::net::UdpSocket::bind("0.0.0.0:0").unwrap();
+    socket.connect("8.8.8.8:80").unwrap();
+    socket.local_addr().unwrap().ip().to_string()
+}
+
 #[cfg(test)]
 mod tests;

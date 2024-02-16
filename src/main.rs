@@ -17,30 +17,62 @@ use eframe::egui;
 const KEY_SIZE: usize = 16;
 const TEST_IP: &'static str = "192.168.40.126:9998";
 
-fn main() {
-    let mut handles: Vec<thread::JoinHandle<()>> = Vec::new();
-    handles.push(thread::spawn(request_handler_thread));
-    
-    handles.push(thread::spawn(|| {
-        tcp::check_availability(TEST_IP).unwrap();
-        
-        let public_key = vect::rand_byte_vector(KEY_SIZE);
-        let recv_key = tcp::send_public_key(TEST_IP, public_key.clone()).unwrap();
-        
-        let base_key = vect::rand_byte_vector(KEY_SIZE);
-        let private_key = vect::and_vector(base_key.clone(), recv_key);
-        
-        let combined_key = vect::and_vector(base_key, public_key);
-        tcp::send_mixed_key(TEST_IP, combined_key).unwrap();
-
-        let message = "you will be forever alone";
-        tcp::encrypted_send(TEST_IP, message, private_key).unwrap();
-    }));
-    
-
-    for handle in handles {
-        handle.join().unwrap();
+struct MainWindow {
+    host: String
+}
+impl MainWindow {
+    fn new(_cc: &eframe::CreationContext<'_>, host: String) -> Self {
+        Self {
+            host
+        }
     }
+}
+impl eframe::App for MainWindow {
+    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            ui.vertical_centered(|ui| {
+                ui.heading(&self.host);
+            });
+        });
+    }
+}
+
+fn main() {
+    thread::spawn(request_handler_thread);
+
+    let host = tcp::get_local_ip();
+    
+    // handles.push(thread::spawn(|| {
+    //     tcp::check_availability(TEST_IP).unwrap();
+        
+    //     let public_key = vect::rand_byte_vector(KEY_SIZE);
+    //     let recv_key = tcp::send_public_key(TEST_IP, public_key.clone()).unwrap();
+        
+    //     let base_key = vect::rand_byte_vector(KEY_SIZE);
+    //     let private_key = vect::and_vector(base_key.clone(), recv_key);
+        
+    //     let combined_key = vect::and_vector(base_key, public_key);
+    //     tcp::send_mixed_key(TEST_IP, combined_key).unwrap();
+
+    //     let message = "you will be forever alone";
+    //     tcp::encrypted_send(TEST_IP, message, private_key).unwrap();
+    // }));
+    let mut options = eframe::NativeOptions::default();
+    options.follow_system_theme = true;
+    {
+        let mut win = egui::ViewportBuilder::default();
+        win.min_inner_size = Some(egui::vec2(500.0, 500.0));
+        win.max_inner_size = win.min_inner_size;
+        win.maximize_button = Some(false);
+        win.resizable = Some(false);
+
+        let (centerx, centery) = calculate_center_screen(500, 500);
+        win.position = Some(egui::pos2(centerx, centery));
+
+        options.viewport = win;
+    }
+
+    eframe::run_native("Whisperer", options, Box::new(|cc| Box::new(MainWindow::new(cc, host)))).unwrap_or(());
 }
 
 fn request_handler_thread() {
