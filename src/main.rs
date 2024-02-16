@@ -15,7 +15,6 @@ use screen_info::DisplayInfo;
 use eframe::egui;
 
 const KEY_SIZE: usize = 16;
-const TEST_IP: &'static str = "192.168.40.126:9998";
 
 struct MainWindow {
     host: String
@@ -28,7 +27,7 @@ impl MainWindow {
     }
 }
 impl eframe::App for MainWindow {
-    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.vertical_centered(|ui| {
                 ui.heading(&self.host);
@@ -72,7 +71,7 @@ fn main() {
         options.viewport = win;
     }
 
-    eframe::run_native("Whisperer", options, Box::new(|cc| Box::new(MainWindow::new(cc, host)))).unwrap_or(());
+    eframe::run_native("I AM IP ADDRESS", options, Box::new(|cc| Box::new(MainWindow::new(cc, host)))).unwrap_or(());
 }
 
 fn request_handler_thread() {
