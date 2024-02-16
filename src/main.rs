@@ -1,5 +1,6 @@
 mod kem;
 mod tcp;
+mod msg;
 
 use tcp::{
     vector as vect,
@@ -12,25 +13,70 @@ use std::{
     sync::{Arc, Mutex}
 };
 use screen_info::DisplayInfo;
-use eframe::egui;
+use eframe::egui::{self, Widget};
 
 const KEY_SIZE: usize = 16;
+const WIN_SIZE: [f32; 2] = [500.0, 500.0];
 
 struct MainWindow {
-    host: String
+    host: String,
+    chat_history: Vec<String>,
+    known_peers: Vec<msg::Recipient>
 }
 impl MainWindow {
     fn new(_cc: &eframe::CreationContext<'_>, host: String) -> Self {
         Self {
-            host
+            host,
+            chat_history: Vec::new(),
+            known_peers: Vec::new()
         }
     }
 }
 impl eframe::App for MainWindow {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
+
             ui.vertical_centered(|ui| {
-                ui.heading(&self.host);
+                ui.heading(format!("HOST: {}", &self.host));
+            });
+
+            ui.separator();
+
+            let mut margin = egui::Margin::default();
+            margin.top = 5.0;
+            margin.bottom = 5.0;
+            margin.left = 2.0;
+            margin.right = 2.0;
+            let rounding = egui::Rounding::default().at_least(5.0);
+
+            egui::Frame::none()
+                .fill(egui::Color32::BLACK)
+                .inner_margin(margin)
+                .rounding(rounding)
+                .show(ui, |ui| 
+                    egui::ScrollArea::vertical()
+                    .auto_shrink(false)
+                    .max_width(WIN_SIZE[0] - 16.0)
+                    .max_height(200.0)
+                    .stick_to_bottom(true)
+                    .show(ui, |ui|
+                {
+                    self.chat_history.iter().for_each(|s| {
+                        ui.monospace(s);
+                    });
+                })
+            );
+
+            ui.vertical_centered(|ui| {
+                if egui::Button::new(
+                    egui::RichText::new("I AM SEND")
+                        .size(24.0)
+                ).min_size(egui::vec2(400.0, 50.0))
+                    .ui(ui)
+                    .clicked()
+                {
+                    self.chat_history.push(format!("[{}]: kill yourself", &self.host));
+                }
             });
         });
     }
@@ -41,31 +87,16 @@ fn main() {
 
     let host = tcp::get_local_ip();
     
-    // handles.push(thread::spawn(|| {
-    //     tcp::check_availability(TEST_IP).unwrap();
-        
-    //     let public_key = vect::rand_byte_vector(KEY_SIZE);
-    //     let recv_key = tcp::send_public_key(TEST_IP, public_key.clone()).unwrap();
-        
-    //     let base_key = vect::rand_byte_vector(KEY_SIZE);
-    //     let private_key = vect::and_vector(base_key.clone(), recv_key);
-        
-    //     let combined_key = vect::and_vector(base_key, public_key);
-    //     tcp::send_mixed_key(TEST_IP, combined_key).unwrap();
-
-    //     let message = "you will be forever alone";
-    //     tcp::encrypted_send(TEST_IP, message, private_key).unwrap();
-    // }));
     let mut options = eframe::NativeOptions::default();
     options.follow_system_theme = true;
     {
         let mut win = egui::ViewportBuilder::default();
-        win.min_inner_size = Some(egui::vec2(500.0, 500.0));
+        win.min_inner_size = Some(egui::vec2(WIN_SIZE[0], WIN_SIZE[1]));
         win.max_inner_size = win.min_inner_size;
         win.maximize_button = Some(false);
         win.resizable = Some(false);
 
-        let (centerx, centery) = calculate_center_screen(500, 500);
+        let (centerx, centery) = calculate_center_screen(WIN_SIZE[0], WIN_SIZE[1]);
         win.position = Some(egui::pos2(centerx, centery));
 
         options.viewport = win;
@@ -120,7 +151,7 @@ fn request_handler_thread() {
 }
 
 #[inline]
-fn calculate_center_screen(x: u32, y: u32) -> (f32, f32) {
+fn calculate_center_screen(x: f32, y: f32) -> (f32, f32) {
     let display = DisplayInfo::all().unwrap();
     let mut res: Option<(u32, u32)> = None;
     for info in display {
@@ -134,7 +165,7 @@ fn calculate_center_screen(x: u32, y: u32) -> (f32, f32) {
     }
     let size = res.expect("No primary monitor");
     (
-        {size.0 / 2 - {x / 2}} as f32,
-        {size.1 / 2 - {y / 2}} as f32
+        {size.0 as f32 / 2.0 - {x / 2.0}},
+        {size.1 as f32 / 2.0 - {y / 2.0}}
     )
 }
