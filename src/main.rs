@@ -22,13 +22,15 @@ struct MainWindow {
     host: String,
     chat_history: Vec<String>,
     known_peers: Vec<msg::Recipient>
+    draft: String
 }
 impl MainWindow {
     fn new(_cc: &eframe::CreationContext<'_>, host: String) -> Self {
         Self {
             host,
             chat_history: Vec::new(),
-            known_peers: Vec::new()
+            known_peers: Vec::new(),
+            draft: String::new()
         }
     }
 }
@@ -67,11 +69,11 @@ impl eframe::App for MainWindow {
                 })
             );
 
-            ui.vertical_centered(|ui| {
-                if egui::Button::new(
-                    egui::RichText::new("I AM SEND")
-                        .size(24.0)
-                ).min_size(egui::vec2(400.0, 50.0))
+            ui.horizontal(|ui| {
+                ui.text_edit_singleline(&mut self.draft);
+
+                if egui::Button::new("Send")
+                    .min_size(egui::vec2(400.0, 50.0))
                     .ui(ui)
                     .clicked()
                 {
