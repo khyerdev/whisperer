@@ -1,5 +1,6 @@
 mod kem;
 mod tcp;
+mod gui;
 
 use tcp::{
     vector as vect,
@@ -13,12 +14,14 @@ use std::{
 };
 
 const KEY_SIZE: usize = 16;
-const TEST_IP: &'static str = "0.0.0.0:9998";
+const TEST_IP: &'static str = "192.168.40.126:9998";
 
 fn main() {
     let port = TcpListener::bind("0.0.0.0:9998").unwrap();
+
+    let mut handles: Vec<thread::JoinHandle<()>> = Vec::new();
     
-    thread::spawn(|| {
+    handles.push(thread::spawn(|| {
         tcp::check_availability(TEST_IP).unwrap();
 
         let public_key = vect::rand_byte_vector(KEY_SIZE);
@@ -26,53 +29,58 @@ fn main() {
 
         let base_key = vect::rand_byte_vector(KEY_SIZE);
         let private_key = vect::and_vector(base_key.clone(), recv_key);
-        println!("{:?}", private_key.clone());
         
         let combined_key = vect::and_vector(base_key, public_key);
         tcp::send_mixed_key(TEST_IP, combined_key).unwrap();
 
         let message = "you will be forever alone";
-        println!("Sent: {message}");
-
         tcp::encrypted_send(TEST_IP, message, private_key).unwrap();
-    });
-    
-    let base_key = Arc::new(vect::rand_byte_vector(KEY_SIZE));
-    let private_key: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
+    }));
 
-    for req in port.incoming() {
-        let base_key = Arc::clone(&base_key);
-        let private_key = Arc::clone(&private_key);
+    handles.push(thread::spawn(move || {
+        let base_key = Arc::new(vect::rand_byte_vector(KEY_SIZE));
+        let private_key: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
 
-        thread::spawn(move || {
-            let mut stream = req.unwrap();
+        for req in port.incoming() {
+            let base_key = Arc::clone(&base_key);
+            let private_key = Arc::clone(&private_key);
 
-            stream.parse_incoming(|stream, protocol, data| match protocol {
-                tcp::Protocol::PublicKey => {
-                    let combined_key = vect::and_vector(base_key.to_vec(), data);
-                    stream.write_all(&[combined_key.as_slice(), &[255u8]].concat()).unwrap();
-                },
-                tcp::Protocol::CombineKey => {
-                    let mut mutex = private_key.lock().unwrap();
-                    *mutex = vect::and_vector(base_key.to_vec(), data);
-                    drop(mutex);
+            thread::spawn(move || {
+                let mut stream = req.unwrap();
 
-                    stream.write_all(&[0u8]).unwrap();
-                    println!("{:?}", &private_key);
-                },
-                tcp::Protocol::Message => {
-                    let key = {
-                        let mutex = private_key.lock().unwrap();
-                        mutex.clone()
-                    };
+                stream.parse_incoming(|stream, protocol, data| match protocol {
+                    tcp::Protocol::PublicKey => {
+                        let combined_key = vect::and_vector(base_key.to_vec(), data);
+                        stream.write_all(&[combined_key.as_slice(), &[255u8]].concat()).unwrap();
+                    },
+                    tcp::Protocol::CombineKey => {
+                        let mut mutex = private_key.lock().unwrap();
+                        *mutex = vect::and_vector(base_key.to_vec(), data);
+                        drop(mutex);
 
-                    let message = kem::decrypt(data, key);
-                    let message = vect::bytes_to_string(message);
-                    println!("Got: {message}");
-                    stream.write_all(&[0u8]).unwrap()
-                },
-                tcp::Protocol::Unknown => stream.write_all(&[0u8]).unwrap()
+                        stream.write_all(&[0u8]).unwrap();
+                    },
+                    tcp::Protocol::Message => {
+                        let key = {
+                            let mutex = private_key.lock().unwrap();
+                            mutex.clone()
+                        };
+
+                        let author = stream.peer_addr().unwrap().to_string();
+
+                        let message = kem::decrypt(data, key);
+                        let message = vect::bytes_to_string(message);
+                        stream.write_all(&[0u8]).unwrap();
+                        
+                        gui::MessageBox.show(author, message);
+                    },
+                    tcp::Protocol::Unknown => stream.write_all(&[0u8]).unwrap()
+                });
             });
-        });
+        }
+    }));
+
+    for handle in handles {
+        handle.join().unwrap();
     }
 }

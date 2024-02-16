@@ -7,3 +7,5 @@ edition = "2021"
 
 [dependencies]
 rand = "0.8.5"
+eframe = "0.26.2"
+screen-info = "0.0.1"
