@@ -55,3 +55,19 @@ pub fn _is_valid_ip(ip: impl ToString) -> bool {
     }
     true
 }
+
+pub struct Message {
+    author: String,
+    content: String
+}
+impl Message {
+    pub fn new(author: String, content: String) -> Self {
+        Self {author, content}
+    }
+    pub fn author(&self) -> String {
+        self.author.clone()
+    }
+    pub fn content(&self) -> String {
+        self.content.clone()
+    }
+}

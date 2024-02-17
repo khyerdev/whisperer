@@ -10,7 +10,7 @@ use std::{
     net::TcpListener,
     io::Write,
     thread,
-    sync::{Arc, Mutex}
+    sync::{Arc, Mutex, mpsc}
 };
 use screen_info::DisplayInfo;
 use eframe::egui::{self, Widget};
@@ -20,22 +20,24 @@ const WIN_SIZE: [f32; 2] = [500.0, 500.0];
 
 struct MainWindow {
     host: String,
-    chat_history: Vec<String>,
-    known_peers: Vec<msg::Recipient>
+    chat_history: Vec<msg::Message>,
+    incoming: mpsc::Receiver<String>,
+    known_peers: Vec<msg::Recipient>,
     draft: String
 }
 impl MainWindow {
-    fn new(_cc: &eframe::CreationContext<'_>, host: String) -> Self {
+    fn new(_cc: &eframe::CreationContext<'_>, host: String, receiver: mpsc::Receiver<String>) -> Self {
         Self {
             host,
             chat_history: Vec::new(),
+            incoming: receiver,
             known_peers: Vec::new(),
             draft: String::new()
         }
     }
 }
 impl eframe::App for MainWindow {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {      
         egui::CentralPanel::default().show(ctx, |ui| {
 
             ui.vertical_centered(|ui| {
@@ -63,21 +65,32 @@ impl eframe::App for MainWindow {
                     .stick_to_bottom(true)
                     .show(ui, |ui|
                 {
-                    self.chat_history.iter().for_each(|s| {
-                        ui.monospace(s);
+                    self.chat_history.iter().for_each(|msg| {
+                        ui.horizontal_wrapped(|ui| {
+                            ui.monospace(egui::RichText::new(
+                                format!("[{}]", msg.author())
+                            ).color(egui::Color32::LIGHT_RED));
+                            ui.monospace(format!(": {}", msg.content()));
+                        });
                     });
                 })
             );
 
             ui.horizontal(|ui| {
-                ui.text_edit_singleline(&mut self.draft);
+                egui::TextEdit::singleline(&mut self.draft)
+                    .desired_width(382.0)
+                    .code_editor()
+                    .lock_focus(false)
+                    .ui(ui);
 
-                if egui::Button::new("Send")
-                    .min_size(egui::vec2(400.0, 50.0))
-                    .ui(ui)
-                    .clicked()
-                {
-                    self.chat_history.push(format!("[{}]: kill yourself", &self.host));
+                if ui.button("Send Message").clicked() {
+                    self.chat_history.push(
+                        msg::Message::new(
+                            self.host.clone(),
+                            self.draft.clone()
+                        )
+                    );
+                    self.draft = String::new();
                 }
             });
         });
@@ -85,12 +98,13 @@ impl eframe::App for MainWindow {
 }
 
 fn main() {
-    thread::spawn(request_handler_thread);
+    let (send, recv): (mpsc::Sender<String>, mpsc::Receiver<String>) = mpsc::channel();
 
     let host = tcp::get_local_ip();
     
+    thread::spawn(|| request_handler_thread(send));
+    
     let mut options = eframe::NativeOptions::default();
-    options.follow_system_theme = true;
     {
         let mut win = egui::ViewportBuilder::default();
         win.min_inner_size = Some(egui::vec2(WIN_SIZE[0], WIN_SIZE[1]));
@@ -104,10 +118,14 @@ fn main() {
         options.viewport = win;
     }
 
-    eframe::run_native("I AM IP ADDRESS", options, Box::new(|cc| Box::new(MainWindow::new(cc, host)))).unwrap_or(());
+    eframe::run_native(
+        &format!("Whisperer - {}", &host), 
+        options, 
+        Box::new(|cc| Box::new(MainWindow::new(cc, host, recv)))
+    ).unwrap_or(());
 }
 
-fn request_handler_thread() {
+fn request_handler_thread(sender: mpsc::Sender<String>) {
     let port = TcpListener::bind("0.0.0.0:9998").unwrap();
 
     let base_key = Arc::new(vect::rand_byte_vector(KEY_SIZE));
