@@ -1,3 +1,4 @@
+#[derive(Clone)]
 pub struct Recipient {
     ip: String,
     alias: Option<String>,
@@ -25,21 +26,27 @@ impl Recipient {
     pub fn alias(&self) -> Option<String> {
         self.alias.clone()
     }
+    pub fn private_key(&self) -> Option<Vec<u8>> {
+        self.private_key.clone()
+    }
+    pub fn ip(&self) -> String {
+        self.ip.clone()
+    }
 }
 
-impl Into<Recipient> for String {
-    fn into(self) -> Recipient {
+impl From<String> for Recipient {
+    fn from(string: String) -> Recipient {
         Recipient {
-            ip: self,
+            ip: string,
             alias: None,
             private_key: None
         }
     }
 }
-impl Into<Recipient> for &str {
-    fn into(self) -> Recipient {
+impl From<&str> for Recipient {
+    fn from(string: &str) -> Recipient {
         Recipient {
-            ip: self.to_string(),
+            ip: string.to_string(),
             alias: None,
             private_key: None
         }

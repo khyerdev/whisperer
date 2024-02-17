@@ -8,7 +8,6 @@ use std::{
 };
 use screen_info::DisplayInfo;
 use eframe::egui::{self, Widget};
-use comms::*;
 
 const WIN_SIZE: [f32; 2] = [500.0, 500.0];
 
@@ -17,6 +16,7 @@ struct MainWindow {
     chat_history: Vec<msg::Message>,
     incoming: mpsc::Receiver<msg::Message>,
     known_peers: Vec<msg::Recipient>,
+    current_peer: msg::Recipient,
     draft: String
 }
 impl MainWindow {
@@ -27,13 +27,14 @@ impl MainWindow {
         receiver: mpsc::Receiver<msg::Message>
     ) -> Self {
         let ctx = cc.egui_ctx.clone();
-        thread::spawn(move || request_handler_thread(ctx, sender));
+        thread::spawn(move || comms::request_handler_thread(ctx, sender));
 
         Self {
-            host,
+            host: host.clone(),
             chat_history: Vec::new(),
             incoming: receiver,
             known_peers: Vec::new(),
+            current_peer: msg::Recipient::from(host),
             draft: String::new()
         }
     }
@@ -84,7 +85,7 @@ impl eframe::App for MainWindow {
                             ui.monospace(egui::RichText::new(
                                 format!("[{}]", msg.author())
                             ).color(egui::Color32::LIGHT_RED));
-                            ui.monospace(format!(": {}", msg.content()));
+                            ui.monospace(msg.content());
                         });
                     });
                 })
@@ -104,7 +105,12 @@ impl eframe::App for MainWindow {
                             self.draft.clone()
                         )
                     );
-                    self.draft = String::new();
+                    
+                    let peer = self.current_peer.clone();
+                    let msg = self.draft.clone();
+                    thread::spawn(move || comms::send_message(peer, msg));
+                    
+                    self.draft.clear();
                 }
             });
         });

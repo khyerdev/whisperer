@@ -47,6 +47,7 @@ pub fn request_handler_thread(win_ctx: egui::Context, sender: mpsc::Sender<msg::
                     };
 
                     let author = stream.peer_addr().unwrap().to_string();
+                    let author = trim_port(author);
 
                     let message = kem::decrypt(data, key);
                     let message = vect::bytes_to_string(message);
@@ -61,4 +62,29 @@ pub fn request_handler_thread(win_ctx: egui::Context, sender: mpsc::Sender<msg::
             });
         });
     }
+}
+
+pub fn send_message(peer: msg::Recipient, msg: String) {
+    let ip = format!("{}:9998", peer.ip());
+    let key = match peer.private_key() {
+        Some(key) => key,
+        None => {
+            let base_key = vect::rand_byte_vector(KEY_SIZE);
+            let public_key = vect::rand_byte_vector(KEY_SIZE);
+            let mixed_key = tcp::send_public_key(&ip, public_key.clone()).unwrap();
+
+            let combined_key = vect::and_vector(base_key.clone(), public_key);
+            tcp::send_mixed_key(&ip, combined_key).unwrap();
+
+            vect::and_vector(mixed_key, base_key)
+        }
+    };
+
+    tcp::encrypted_send(&ip, &msg, key).unwrap();
+}
+
+#[inline]
+fn trim_port(ip: String) -> String {
+    let parts: Vec<&str> = ip.split_terminator(':').collect();
+    parts[0].to_string()
 }
