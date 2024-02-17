@@ -33,7 +33,7 @@ impl MainWindow {
         peers.push(msg::Recipient::from(host.clone()));
 
         let mut debug = msg::Recipient::from("255.255.255.255");
-        debug.set_alias("AAAAAAAAAAAAAAAAAAAA");
+        debug.set_alias("AAAAAAAAAAAAAAAAAAAAAAAAAAAA");
         peers.push(debug);
 
         Self {
@@ -193,7 +193,7 @@ fn main() {
 
         let (centerx, centery) = calculate_center_screen(WIN_SIZE[0], WIN_SIZE[1]);
         win.position = Some(egui::pos2(centerx, centery));
-        win.resizable = Some(false);
+        //win.resizable = Some(false);
 
         options.viewport = win;
     }
