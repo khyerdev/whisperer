@@ -61,6 +61,8 @@ impl eframe::App for MainWindow {
         }
 
         egui::CentralPanel::default().show(ctx, |ui| {
+            let width = ui.available_width();
+            let height = ui.available_height();
 
             ui.vertical_centered(|ui| {
                 ui.heading(format!("Whisperer @ {} on {:?}", &self.host, ctx.os()));
@@ -71,7 +73,7 @@ impl eframe::App for MainWindow {
             ui.horizontal(|ui| {
                 ui.label("Peer:");
                 egui::ComboBox::from_id_source("choose-peer")
-                    .width(300.0)
+                    .width(width - 225.0)
                     .selected_text(egui::RichText::new(self.current_peer.full_string()).monospace())
                     .show_ui(ui, |ui|
                 {
@@ -96,10 +98,10 @@ impl eframe::App for MainWindow {
                     self.current_peer.set_alias("test");
                     msg::modify_alias(self.current_peer.ip(), "test", &mut self.known_peers);
                 }
-                ui.menu_button("Add", |ui| {
-                    
+                ui.menu_button("Add", |_ui| {
+
                 });
-                ui.button("Remove");
+                let _ = ui.button("Remove");
             });
 
             let mut margin = egui::Margin::default();
@@ -116,8 +118,8 @@ impl eframe::App for MainWindow {
                 .show(ui, |ui| 
                     egui::ScrollArea::vertical()
                     .auto_shrink(false)
-                    .max_width(WIN_SIZE[0] - 16.0)
-                    .max_height(285.0)
+                    .max_width(width)
+                    .max_height(height - 100.0)
                     .stick_to_bottom(true)
                     .show(ui, |ui|
                 {
@@ -145,7 +147,7 @@ impl eframe::App for MainWindow {
             let l = self.draft.len();
             ui.horizontal(|ui| {
                 egui::TextEdit::singleline(&mut self.draft)
-                    .desired_width(482.0)
+                    .desired_width(width - 102.0)
                     .code_editor()
                     .lock_focus(false)
                     .ui(ui);
@@ -187,12 +189,11 @@ fn main() {
     {
         let mut win = egui::ViewportBuilder::default();
         win.min_inner_size = Some(egui::vec2(WIN_SIZE[0], WIN_SIZE[1]));
-        win.max_inner_size = win.min_inner_size;
-        win.maximize_button = Some(false);
-        win.resizable = Some(false);
+        win.inner_size = Some(egui::vec2(WIN_SIZE[0], WIN_SIZE[1]));
 
         let (centerx, centery) = calculate_center_screen(WIN_SIZE[0], WIN_SIZE[1]);
         win.position = Some(egui::pos2(centerx, centery));
+        win.resizable = Some(false);
 
         options.viewport = win;
     }
