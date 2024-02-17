@@ -9,7 +9,7 @@ use std::{
 use screen_info::DisplayInfo;
 use eframe::egui::{self, Widget};
 
-const WIN_SIZE: [f32; 2] = [500.0, 500.0];
+const WIN_SIZE: [f32; 2] = [600.0, 400.0];
 
 struct MainWindow {
     host: String,
@@ -29,11 +29,18 @@ impl MainWindow {
         let ctx = cc.egui_ctx.clone();
         thread::spawn(move || comms::request_handler_thread(ctx, sender));
 
+        let mut peers = Vec::new();
+        peers.push(msg::Recipient::from(host.clone()));
+
+        let mut debug = msg::Recipient::from("255.255.255.255");
+        debug.set_alias("AAAAAAAAAAAAAAAAAAAA");
+        peers.push(debug);
+
         Self {
             host: host.clone(),
             chat_history: Vec::new(),
             incoming: receiver,
-            known_peers: Vec::new(),
+            known_peers: peers,
             current_peer: msg::Recipient::from(host),
             draft: String::new()
         }
@@ -56,10 +63,44 @@ impl eframe::App for MainWindow {
         egui::CentralPanel::default().show(ctx, |ui| {
 
             ui.vertical_centered(|ui| {
-                ui.heading(format!("HOST: {}", &self.host));
+                ui.heading(format!("Whisperer @ {} on {:?}", &self.host, ctx.os()));
             });
 
             ui.separator();
+
+            ui.horizontal(|ui| {
+                ui.label("Peer:");
+                egui::ComboBox::from_id_source("choose-peer")
+                    .width(300.0)
+                    .selected_text(egui::RichText::new(self.current_peer.full_string()).monospace())
+                    .show_ui(ui, |ui|
+                {
+                    for peer in self.known_peers.iter() {
+                        ui.selectable_value(
+                            &mut self.current_peer,
+                            peer.clone(),
+                            egui::RichText::new(peer.full_string()).monospace()
+                        );
+                    }
+                });
+
+                let action = match self.current_peer.alias() {
+                    Some(_) => "Change",
+                    None => "Set"
+                };
+                if egui::Button::new(format!("{action} alias"))
+                    .min_size(egui::vec2(80.0, 15.0))
+                    .ui(ui)
+                    .clicked()
+                {
+                    self.current_peer.set_alias("test");
+                    msg::modify_alias(self.current_peer.ip(), "test", &mut self.known_peers);
+                }
+                ui.menu_button("Add", |ui| {
+                    
+                });
+                ui.button("Remove");
+            });
 
             let mut margin = egui::Margin::default();
             margin.top = 5.0;
@@ -76,43 +117,63 @@ impl eframe::App for MainWindow {
                     egui::ScrollArea::vertical()
                     .auto_shrink(false)
                     .max_width(WIN_SIZE[0] - 16.0)
-                    .max_height(200.0)
+                    .max_height(285.0)
                     .stick_to_bottom(true)
                     .show(ui, |ui|
                 {
                     self.chat_history.iter().for_each(|msg| {
+                        let col = match msg.author().as_str() {
+                            "You" => egui::Color32::LIGHT_BLUE,
+                            _ => egui::Color32::LIGHT_RED
+                        };
+
+                        let author = match msg::find_alias(msg.author(), &self.known_peers) {
+                            Some(alias) => alias,
+                            None => msg.author()
+                        };
+
                         ui.horizontal_wrapped(|ui| {
                             ui.monospace(egui::RichText::new(
-                                format!("[{}]", msg.author())
-                            ).color(egui::Color32::LIGHT_RED));
+                                format!("[{}]", author)
+                            ).color(col));
                             ui.monospace(msg.content());
                         });
                     });
                 })
             );
 
+            let l = self.draft.len();
             ui.horizontal(|ui| {
                 egui::TextEdit::singleline(&mut self.draft)
-                    .desired_width(382.0)
+                    .desired_width(482.0)
                     .code_editor()
                     .lock_focus(false)
                     .ui(ui);
 
-                if ui.button("Send Message").clicked() {
-                    self.chat_history.push(
-                        msg::Message::new(
-                            String::from("You"),
-                            self.draft.clone()
-                        )
-                    );
-                    
-                    let peer = self.current_peer.clone();
-                    let msg = self.draft.clone();
-                    thread::spawn(move || comms::send_message(peer, msg));
-                    
-                    self.draft.clear();
-                }
+                ui.add_enabled_ui(l > 0 && l <= 2000, |ui|
+                    if ui.button("Send Message").clicked() {
+                        self.chat_history.push(
+                            msg::Message::new(
+                                String::from("You"),
+                                self.draft.clone()
+                            )
+                        );
+                        
+                        let peer = self.current_peer.clone();
+                        let msg = self.draft.clone();
+                        thread::spawn(move || comms::send_message(peer, msg));
+                        
+                        self.draft.clear();
+                    }
+                );
             });
+
+            let col = match l {
+                0..=1799 => egui::Color32::GRAY,
+                1800..=2000 => egui::Color32::YELLOW,
+                _ => egui::Color32::RED,
+            };
+            ui.label(egui::RichText::new(format!("{l}/2000")).color(col));
         });
     }
 }
@@ -137,13 +198,13 @@ fn main() {
     }
 
     eframe::run_native(
-        &format!("Whisperer - {}", &host), 
+        "Whisperer", 
         options, 
         Box::new(|cc| Box::new(MainWindow::new(cc, host, send, recv)))
     ).unwrap_or(());
 }
 
-#[inline]
+#[inline(always)]
 fn calculate_center_screen(x: f32, y: f32) -> (f32, f32) {
     let display = DisplayInfo::all().unwrap();
     let mut res: Option<(u32, u32)> = None;
