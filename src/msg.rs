@@ -1,3 +1,4 @@
+#![allow(unused)]
 #[derive(Clone, PartialEq)]
 pub struct Recipient {
     ip: String,
