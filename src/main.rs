@@ -1,32 +1,34 @@
 mod kem;
 mod tcp;
 mod msg;
+mod comms;
 
-use tcp::{
-    vector as vect,
-    StreamReader
-};
 use std::{
-    net::TcpListener,
-    io::Write,
-    thread,
-    sync::{Arc, Mutex, mpsc}
+    sync::mpsc, thread
 };
 use screen_info::DisplayInfo;
 use eframe::egui::{self, Widget};
+use comms::*;
 
-const KEY_SIZE: usize = 16;
 const WIN_SIZE: [f32; 2] = [500.0, 500.0];
 
 struct MainWindow {
     host: String,
     chat_history: Vec<msg::Message>,
-    incoming: mpsc::Receiver<String>,
+    incoming: mpsc::Receiver<msg::Message>,
     known_peers: Vec<msg::Recipient>,
     draft: String
 }
 impl MainWindow {
-    fn new(_cc: &eframe::CreationContext<'_>, host: String, receiver: mpsc::Receiver<String>) -> Self {
+    fn new(
+        cc: &eframe::CreationContext<'_>,
+        host: String,
+        sender: mpsc::Sender<msg::Message>,
+        receiver: mpsc::Receiver<msg::Message>
+    ) -> Self {
+        let ctx = cc.egui_ctx.clone();
+        thread::spawn(move || request_handler_thread(ctx, sender));
+
         Self {
             host,
             chat_history: Vec::new(),
@@ -37,7 +39,19 @@ impl MainWindow {
     }
 }
 impl eframe::App for MainWindow {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {      
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        match self.incoming.try_recv() {
+            Ok(message) => {
+                self.chat_history.push(
+                    msg::Message::new(
+                        message.author(),
+                        message.content()
+                    )
+                );
+            }
+            Err(_) => ()
+        }
+
         egui::CentralPanel::default().show(ctx, |ui| {
 
             ui.vertical_centered(|ui| {
@@ -86,7 +100,7 @@ impl eframe::App for MainWindow {
                 if ui.button("Send Message").clicked() {
                     self.chat_history.push(
                         msg::Message::new(
-                            self.host.clone(),
+                            String::from("You"),
                             self.draft.clone()
                         )
                     );
@@ -98,11 +112,9 @@ impl eframe::App for MainWindow {
 }
 
 fn main() {
-    let (send, recv): (mpsc::Sender<String>, mpsc::Receiver<String>) = mpsc::channel();
+    let (send, recv): (mpsc::Sender<msg::Message>, mpsc::Receiver<msg::Message>) = mpsc::channel();
 
     let host = tcp::get_local_ip();
-    
-    thread::spawn(|| request_handler_thread(send));
     
     let mut options = eframe::NativeOptions::default();
     {
@@ -121,53 +133,8 @@ fn main() {
     eframe::run_native(
         &format!("Whisperer - {}", &host), 
         options, 
-        Box::new(|cc| Box::new(MainWindow::new(cc, host, recv)))
+        Box::new(|cc| Box::new(MainWindow::new(cc, host, send, recv)))
     ).unwrap_or(());
-}
-
-fn request_handler_thread(sender: mpsc::Sender<String>) {
-    let port = TcpListener::bind("0.0.0.0:9998").unwrap();
-
-    let base_key = Arc::new(vect::rand_byte_vector(KEY_SIZE));
-    let private_key: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
-
-    for req in port.incoming() {
-        let base_key = Arc::clone(&base_key);
-        let private_key = Arc::clone(&private_key);
-
-        thread::spawn(move || {
-            let mut stream = req.unwrap();
-
-            stream.parse_incoming(|stream, protocol, data| match protocol {
-                tcp::Protocol::PublicKey => {
-                    let combined_key = vect::and_vector(base_key.to_vec(), data);
-                    stream.write_all(&[combined_key.as_slice(), &[255u8]].concat()).unwrap();
-                },
-                tcp::Protocol::CombineKey => {
-                    let mut mutex = private_key.lock().unwrap();
-                    *mutex = vect::and_vector(base_key.to_vec(), data);
-                    drop(mutex);
-
-                    stream.write_all(&[0u8]).unwrap();
-                },
-                tcp::Protocol::Message => {
-                    let key = {
-                        let mutex = private_key.lock().unwrap();
-                        mutex.clone()
-                    };
-
-                    let author = stream.peer_addr().unwrap().to_string();
-
-                    let message = kem::decrypt(data, key);
-                    let message = vect::bytes_to_string(message);
-                    stream.write_all(&[0u8]).unwrap();
-
-                    println!("{author}: {message}");
-                },
-                tcp::Protocol::Unknown => stream.write_all(&[0u8]).unwrap()
-            });
-        });
-    }
 }
 
 #[inline]

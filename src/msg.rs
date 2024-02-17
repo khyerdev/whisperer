@@ -1,15 +1,16 @@
 pub struct Recipient {
     ip: String,
-    alias: Option<String>
+    alias: Option<String>,
+    private_key: Option<Vec<u8>>
 }
 impl Recipient {
-    pub fn get() -> Vec<Self> {
+    pub fn get_all() -> Vec<Self> {
         todo!()
     }
     pub fn add(addition: impl Into<Recipient>) {
         todo!()
     }
-    pub fn set_alias(addition: impl Into<Recipient>) {
+    pub fn set_alias(alias: String) {
         todo!()
     }
     pub fn remove(removal: impl Into<Recipient>) {
@@ -30,7 +31,8 @@ impl Into<Recipient> for String {
     fn into(self) -> Recipient {
         Recipient {
             ip: self,
-            alias: None
+            alias: None,
+            private_key: None
         }
     }
 }
@@ -38,7 +40,8 @@ impl Into<Recipient> for &str {
     fn into(self) -> Recipient {
         Recipient {
             ip: self.to_string(),
-            alias: None
+            alias: None,
+            private_key: None
         }
     }
 }
