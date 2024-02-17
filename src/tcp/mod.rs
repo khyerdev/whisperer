@@ -1,3 +1,4 @@
+#![allow(unused)]
 //! Wrappers around TcpStream with khyernet's custom protocol
 //! 
 //! This module will not work properly unless both ends are using the same protocol
