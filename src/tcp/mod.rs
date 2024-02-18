@@ -8,11 +8,10 @@ pub mod vector;
 
 use vector as vect;
 use std::{
-    net::TcpStream,
     io::{
         prelude::*,
         Error, ErrorKind
-    }
+    }, net::TcpStream, time::Duration
 };
 use crate::kem;
 
@@ -47,6 +46,9 @@ impl StreamReader for TcpStream {
 /// Check if `ip` has an open port.
 pub fn check_availability(ip: &str) -> Result<(), Error> {
     let mut stream = TcpStream::connect(ip)?;
+    stream.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+    stream.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
+    
     stream.write_all(&[22u8])?;
 
     let mut ack = [255u8; 1];

@@ -389,7 +389,12 @@ impl eframe::App for MainWindow {
                 1800..=2000 => egui::Color32::YELLOW,
                 _ => egui::Color32::RED,
             };
-            ui.label(egui::RichText::new(format!("{l}/2000")).color(col));
+            ui.horizontal(|ui| {
+                ui.label(egui::RichText::new(format!("{l}/2000")).color(col));
+                if self.sending {
+                    ui.spinner();
+                }
+            });
         });
     }
 
