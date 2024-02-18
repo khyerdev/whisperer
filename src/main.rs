@@ -4,7 +4,7 @@ mod msg;
 mod comms;
 
 use std::{sync::{mpsc, RwLock}, thread};
-use eframe::egui::{self, Widget};
+use eframe::egui;
 use once_cell::sync::Lazy;
 
 const WIN_SIZE: [f32; 2] = [600.0, 400.0];
@@ -24,6 +24,7 @@ struct MainWindow {
     new_alias: String,
     new_peer: String,
     thinking: bool,
+    sending: bool,
     confirm_remove: bool
 }
 impl MainWindow {
@@ -58,6 +59,7 @@ impl MainWindow {
             new_alias: String::new(),
             new_peer: String::new(),
             thinking: false,
+            sending: false,
             confirm_remove: false
         }
     }
@@ -102,6 +104,32 @@ impl eframe::App for MainWindow {
                     }
                     self.thinking = false;
                 },
+                Event::SendMessage(success) => {
+                    if !success {
+                        self.sending = false;
+                    } else {
+                        for history in self.chat_history.iter_mut() {
+                            if history.peer() == self.current_peer {
+                                history.push_msg(
+                                    msg::Message::new(
+                                        String::from("You"),
+                                        self.draft.clone()
+                                    )
+                                );
+                                break
+                            }
+                        }
+                        
+                        let peer = self.current_peer.clone();
+                        let msg = self.draft.clone();
+                        let callback = self.new_event.clone();
+                        let ctx_update = ctx.clone();
+                        thread::spawn(move || comms::send_message(peer, msg, callback, ctx_update));
+                        
+                        self.draft.clear();
+                        self.sending = false;
+                    }
+                }
                 Event::ConfirmationExpired => self.confirm_remove = false
             }
             Err(_) => ()
@@ -325,33 +353,26 @@ impl eframe::App for MainWindow {
 
             let l = self.draft.len();
             ui.horizontal(|ui| {
-                egui::TextEdit::singleline(&mut self.draft)
-                    .desired_width(width - 102.0)
-                    .code_editor()
-                    .lock_focus(false)
-                    .ui(ui);
+                ui.add_enabled(!self.sending, 
+                    egui::TextEdit::singleline(&mut self.draft)
+                        .desired_width(width - 102.0)
+                        .code_editor()
+                        .lock_focus(false)
+                );
 
-                ui.add_enabled_ui(l > 0 && l <= 2000 && self.current_peer.ip() != String::from("None"), |ui|
+                ui.add_enabled_ui(l > 0 && l <= 2000 && self.current_peer.ip() != String::from("None") && !self.sending, |ui|
                     if ui.button("Send Message").clicked() {
-                        for history in self.chat_history.iter_mut() {
-                            if history.peer() == self.current_peer {
-                                history.push_msg(
-                                    msg::Message::new(
-                                        String::from("You"),
-                                        self.draft.clone()
-                                    )
-                                );
-                                break
+                        self.sending = false;
+                        let ip = self.current_peer.ip();
+                        let sender = self.new_event.clone();
+                        let update_ctx = ctx.clone();
+                        thread::spawn(move || {
+                            match tcp::check_availability(ip.as_str()) {
+                                Ok(()) => sender.send(Event::SendMessage(true)).unwrap(),
+                                Err(_) => sender.send(Event::SendMessage(false)).unwrap()
                             }
-                        }
-                        
-                        let peer = self.current_peer.clone();
-                        let msg = self.draft.clone();
-                        let callback = self.new_event.clone();
-                        let ctx_update = ctx.clone();
-                        thread::spawn(move || comms::send_message(peer, msg, callback, ctx_update));
-                        
-                        self.draft.clear();
+                            update_ctx.request_repaint();
+                        });
                     }
                 );
             });
@@ -396,5 +417,6 @@ enum Event {
     IncomingMsg(msg::Message),
     StoreKey(String, Vec<u8>),
     NewPeerResult(Option<msg::Recipient>),
+    SendMessage(bool),
     ConfirmationExpired
 }
