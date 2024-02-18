@@ -19,7 +19,8 @@ struct MainWindow {
     draft: String,
     new_alias: String,
     new_peer: String,
-    thinking: bool
+    thinking: bool,
+    confirm_remove: bool
 }
 impl MainWindow {
     fn new(
@@ -33,12 +34,15 @@ impl MainWindow {
         thread::spawn(move || comms::request_handler_thread(ctx, send));
 
         let mut peers = Vec::new();
-        peers.push(msg::Recipient::from(host.clone()));
+        // peers.push(msg::Recipient::from(host.clone()));
 
         // 28 character limit
         let mut debug = msg::Recipient::from("255.255.255.255");
         debug.set_alias(Some(String::from("AAAAAAAAAAAAAAAAAAAAAAAAAAAA")));
         peers.push(debug);
+
+        let first = peers.first().unwrap();
+        let first = first.clone();
 
         Self {
             host: host.clone(),
@@ -46,11 +50,12 @@ impl MainWindow {
             new_event: sender,
             listener: receiver,
             known_peers: peers,
-            current_peer: msg::Recipient::from(host),
+            current_peer: first,
             draft: String::new(),
             new_alias: String::new(),
             new_peer: String::new(),
-            thinking: false
+            thinking: false,
+            confirm_remove: false
         }
     }
 }
@@ -67,12 +72,15 @@ impl eframe::App for MainWindow {
                     );
                 }
                 Event::StoreKey(_) => todo!(),
-                Event::NewPeerResult(rec) => match rec {
-                    Some(rec) => {
-                        self.known_peers.push(rec);
-                        self.new_peer = String::from("SUCCESS");
-                    },
-                    None => self.new_peer = String::from("FAIL: Unresponsive IP")
+                Event::NewPeerResult(rec) => {
+                    match rec {
+                        Some(rec) => {
+                            self.known_peers.push(rec);
+                            self.new_peer = String::from("SUCCESS");
+                        },
+                        None => self.new_peer = String::from("FAIL: Offline/invalid IP")
+                    }
+                    self.thinking = false;
                 },
             }
             Err(_) => ()
@@ -144,26 +152,26 @@ impl eframe::App for MainWindow {
                         if ui.add_enabled(l > 0 && l <= 28 && msg::is_valid_ip(&self.new_peer), egui::Button::new(format!("Verify and add"))).clicked() {
                             self.thinking = true;
 
-                            match tcp::check_availability(&format!("{}:9998", &self.new_peer)) {
-                                Ok(_) => {
-                                    let ip = self.new_peer.clone();
-                                    let sender = self.new_event.clone();
-                                    thread::spawn(move || {
+                            let ip = self.new_peer.clone();
+                            let sender = self.new_event.clone();
+                            let update_ctx = ctx.clone();
+                            
+                            thread::spawn(move || {
+                                match tcp::check_availability(&format!("{}:9998", ip.clone())) {
+                                    Ok(_) => {
                                         match comms::make_keypair(ip.clone()) {
                                             Ok(key) => {
                                                 let mut rec = msg::Recipient::from(ip);
                                                 rec.set_private_key(key);
-                                                sender.send(Event::NewPeerResult(Some(rec)))
+                                                sender.send(Event::NewPeerResult(Some(rec))).unwrap();
+                                                update_ctx.request_repaint();
                                             },
-                                            Err(_) => sender.send(Event::NewPeerResult(None))
+                                            Err(_) => sender.send(Event::NewPeerResult(None)).unwrap()
                                         }
-                                    });
-                                },
-                                Err(_) => self.new_peer = String::from("FAIL: Offline/invalid IP"),
-                            }
-
-                            self.thinking = false;
-                            
+                                    },
+                                    Err(_) => sender.send(Event::NewPeerResult(None)).unwrap(),
+                                }
+                            });
                         }
                     });
                     if self.thinking {
@@ -171,9 +179,9 @@ impl eframe::App for MainWindow {
                     }
                 });
 
-                ui.menu_button("Remove", |ui| {
+                if ui.button("Remove").clicked() {
 
-                });
+                }
             });
 
             let mut margin = egui::Margin::default();
