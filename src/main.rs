@@ -221,40 +221,53 @@ impl eframe::App for MainWindow {
                     });
                 });
 
-                match self.confirm_remove {
-                    true => if ui.add_enabled(&self.current_peer.ip() != "None", egui::Button::new(" Sure? ")).clicked() {
-                        self.confirm_remove = false;
-                        unsafe {
-                            let peers_rwlock = KNOWN_PEERS.read().unwrap();
-                            let peers = peers_rwlock.clone();
-                            drop(peers_rwlock);
-                            for (i, peer) in peers.iter().enumerate() {
-                                if peer == &self.current_peer {
-                                    KNOWN_PEERS.write().unwrap().remove(i);
-                                    for (i, history) in self.chat_history.iter().enumerate() {
-                                        if &history.peer() == peer {
-                                            self.chat_history.remove(i);
-                                            break
-                                        }
-                                    }
-                                    self.current_peer = peers[0].clone();
+                ui.add_enabled_ui(&self.current_peer.ip() != "None", |ui| {
+                    ui.menu_button("Remove", |ui| {
+                        if ui.button("Delete chat history").clicked() {
+                            for history in self.chat_history.iter_mut() {
+                                if &history.peer() == &self.current_peer {
+                                    history.clear_history();
                                     break
                                 }
                             }
+                            ui.close_menu();
                         }
-                    },
-                    false => if ui.add_enabled(&self.current_peer.ip() != "None", egui::Button::new("Remove")).clicked() {
-                        self.confirm_remove = true;
-                        let future_call = self.new_event.clone();
-                        let update_ctx = ctx.clone();
-                        thread::spawn(move || {
-                            thread::sleep(std::time::Duration::from_secs(1));
-                            future_call.send(Event::ConfirmationExpired).unwrap();
-                            update_ctx.request_repaint();
-                        });
-                    }
-                }
-                
+                        match self.confirm_remove {
+                            true => if ui.button("Are you sure?").clicked() {
+                                self.confirm_remove = false;
+                                unsafe {
+                                    let peers_rwlock = KNOWN_PEERS.read().unwrap();
+                                    let peers = peers_rwlock.clone();
+                                    drop(peers_rwlock);
+                                    for (i, peer) in peers.iter().enumerate() {
+                                        if peer == &self.current_peer {
+                                            KNOWN_PEERS.write().unwrap().remove(i);
+                                            for (i, history) in self.chat_history.iter().enumerate() {
+                                                if &history.peer() == peer {
+                                                    self.chat_history.remove(i);
+                                                    break
+                                                }
+                                            }
+                                            self.current_peer = peers[0].clone();
+                                            break
+                                        }
+                                    }
+                                }
+                                ui.close_menu();
+                            },
+                            false => if ui.button("Actually remove").clicked() {
+                                self.confirm_remove = true;
+                                let future_call = self.new_event.clone();
+                                let update_ctx = ctx.clone();
+                                thread::spawn(move || {
+                                    thread::sleep(std::time::Duration::from_secs(1));
+                                    future_call.send(Event::ConfirmationExpired).unwrap();
+                                    update_ctx.request_repaint();
+                                });
+                            }
+                        }
+                    });
+                });
             });
 
             let mut margin = egui::Margin::default();
