@@ -237,6 +237,7 @@ impl eframe::App for MainWindow {
                                             break
                                         }
                                     }
+                                    self.current_peer = peers[0].clone();
                                     break
                                 }
                             }
