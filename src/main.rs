@@ -231,6 +231,12 @@ impl eframe::App for MainWindow {
                             for (i, peer) in peers.iter().enumerate() {
                                 if peer == &self.current_peer {
                                     KNOWN_PEERS.write().unwrap().remove(i);
+                                    for (i, history) in self.chat_history.iter().enumerate() {
+                                        if &history.peer() == peer {
+                                            self.chat_history.remove(i);
+                                            break
+                                        }
+                                    }
                                     break
                                 }
                             }
