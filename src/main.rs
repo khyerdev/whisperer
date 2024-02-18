@@ -96,6 +96,7 @@ impl eframe::App for MainWindow {
                 Event::NewPeerResult(rec) => {
                     match rec {
                         Some(rec) => {
+                            unsafe {KNOWN_PEERS.write().unwrap().push(rec.clone())}
                             self.chat_history.push(msg::ChatHistory::new(rec.clone()));
                             self.new_peer = String::from("SUCCESS");
                             self.current_peer = rec;
