@@ -69,18 +69,24 @@ pub fn send_message(peer: msg::Recipient, msg: String) {
     let key = match peer.private_key() {
         Some(key) => key,
         None => {
-            let base_key = vect::rand_byte_vector(KEY_SIZE);
-            let public_key = vect::rand_byte_vector(KEY_SIZE);
-            let mixed_key = tcp::send_public_key(&ip, public_key.clone()).unwrap();
-
-            let combined_key = vect::and_vector(base_key.clone(), public_key);
-            tcp::send_mixed_key(&ip, combined_key).unwrap();
-
-            vect::and_vector(mixed_key, base_key)
+            make_keypair(&ip).unwrap()
         }
     };
 
     tcp::encrypted_send(&ip, &msg, key).unwrap();
+}
+
+pub fn make_keypair(ip: impl ToString) -> Result<Vec<u8>, std::io::Error> {
+    let ip = format!("{}:9998", ip.to_string());
+
+    let base_key = vect::rand_byte_vector(KEY_SIZE);
+    let public_key = vect::rand_byte_vector(KEY_SIZE);
+    let mixed_key = tcp::send_public_key(&ip, public_key.clone())?;
+
+    let combined_key = vect::and_vector(base_key.clone(), public_key);
+    tcp::send_mixed_key(&ip, combined_key)?;
+
+    Ok(vect::and_vector(mixed_key, base_key))
 }
 
 #[inline]

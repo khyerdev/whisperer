@@ -30,6 +30,9 @@ impl Recipient {
     pub fn private_key(&self) -> Option<Vec<u8>> {
         self.private_key.clone()
     }
+    pub fn set_private_key(&mut self, key: Vec<u8>) {
+        self.private_key = Some(key);
+    }
     pub fn ip(&self) -> String {
         self.ip.clone()
     }

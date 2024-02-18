@@ -67,7 +67,13 @@ impl eframe::App for MainWindow {
                     );
                 }
                 Event::StoreKey(_) => todo!(),
-                Event::NewPeerResult(_) => todo!(),
+                Event::NewPeerResult(rec) => match rec {
+                    Some(rec) => {
+                        self.known_peers.push(rec);
+                        self.new_peer = String::from("SUCCESS");
+                    },
+                    None => self.new_peer = String::from("FAIL: Unresponsive IP")
+                },
             }
             Err(_) => ()
         }
@@ -133,15 +139,25 @@ impl eframe::App for MainWindow {
 
                 ui.menu_button("Add", |ui| {
                     let l = self.new_peer.len();
-                    ui.text_edit_singleline(&mut self.new_peer);
+                    ui.add_enabled(!self.thinking, egui::TextEdit::singleline(&mut self.new_peer));
                     ui.horizontal(|ui| {
                         if ui.add_enabled(l > 0 && l <= 28 && msg::is_valid_ip(&self.new_peer), egui::Button::new(format!("Verify and add"))).clicked() {
                             self.thinking = true;
 
                             match tcp::check_availability(&format!("{}:9998", &self.new_peer)) {
                                 Ok(_) => {
-                                    self.new_peer.clear();
-                                    ui.close_menu();
+                                    let ip = self.new_peer.clone();
+                                    let sender = self.new_event.clone();
+                                    thread::spawn(move || {
+                                        match comms::make_keypair(ip.clone()) {
+                                            Ok(key) => {
+                                                let mut rec = msg::Recipient::from(ip);
+                                                rec.set_private_key(key);
+                                                sender.send(Event::NewPeerResult(Some(rec)))
+                                            },
+                                            Err(_) => sender.send(Event::NewPeerResult(None))
+                                        }
+                                    });
                                 },
                                 Err(_) => self.new_peer = String::from("FAIL: Offline/invalid IP"),
                             }
