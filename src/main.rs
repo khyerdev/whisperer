@@ -3,9 +3,7 @@ mod tcp;
 mod msg;
 mod comms;
 
-use std::{
-    sync::mpsc, thread
-};
+use std::{sync::mpsc, thread};
 use screen_info::DisplayInfo;
 use eframe::egui::{self, Widget};
 
@@ -32,6 +30,7 @@ impl MainWindow {
         let mut peers = Vec::new();
         peers.push(msg::Recipient::from(host.clone()));
 
+        // 28 character limit
         let mut debug = msg::Recipient::from("255.255.255.255");
         debug.set_alias("AAAAAAAAAAAAAAAAAAAAAAAAAAAA");
         peers.push(debug);
@@ -98,9 +97,7 @@ impl eframe::App for MainWindow {
                     self.current_peer.set_alias("test");
                     msg::modify_alias(self.current_peer.ip(), "test", &mut self.known_peers);
                 }
-                ui.menu_button("Add", |_ui| {
-
-                });
+                let _ = ui.button("Add");
                 let _ = ui.button("Remove");
             });
 
@@ -205,6 +202,7 @@ fn main() {
     ).unwrap_or(());
 }
 
+// because complexity
 #[inline(always)]
 fn calculate_center_screen(x: f32, y: f32) -> (f32, f32) {
     let display = DisplayInfo::all().unwrap();

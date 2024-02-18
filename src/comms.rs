@@ -9,11 +9,11 @@ use crate::{
 use std::{
     io::Write, net::TcpListener, sync::{mpsc, Arc, Mutex}, thread
 };
-use eframe::egui;
+use eframe::egui::Context;
 
 const KEY_SIZE: usize = 16;
 
-pub fn request_handler_thread(win_ctx: egui::Context, sender: mpsc::Sender<msg::Message>) {
+pub fn request_handler_thread(win_ctx: Context, sender: mpsc::Sender<msg::Message>) {
     let port = TcpListener::bind("0.0.0.0:9998").unwrap();
 
     let base_key = Arc::new(vect::rand_byte_vector(KEY_SIZE));
