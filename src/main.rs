@@ -374,7 +374,7 @@ impl eframe::App for MainWindow {
                         let sender = self.new_event.clone();
                         let update_ctx = ctx.clone();
                         thread::spawn(move || {
-                            match tcp::check_availability(ip.as_str()) {
+                            match tcp::check_availability(&format!("{ip}:9998")) {
                                 Ok(()) => sender.send(Event::SendMessage(true)).unwrap(),
                                 Err(_) => sender.send(Event::SendMessage(false)).unwrap()
                             }
