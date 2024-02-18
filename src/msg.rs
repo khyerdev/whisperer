@@ -119,4 +119,7 @@ impl ChatHistory {
     pub fn update_peer(&mut self, new: Recipient) {
         self.peer = new
     }
+    pub fn clear_history(&mut self) {
+        self.history.clear()
+    }
 }
