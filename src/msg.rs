@@ -123,3 +123,19 @@ impl ChatHistory {
         self.history.clear()
     }
 }
+
+pub fn try_refresh_history_list(history_list: &mut Vec<ChatHistory>, peer_list: &Vec<Recipient>, once: bool) {
+    for peer in peer_list.iter() {
+        let mut matched = false;
+        for history in history_list.iter() {
+            if &history.peer() == peer {
+                matched = true;
+                break
+            }
+        }
+        if !matched {
+            history_list.push(ChatHistory::new(peer.clone()));
+            if once {break}
+        }
+    }
+}
