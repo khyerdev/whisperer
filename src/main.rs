@@ -1,3 +1,4 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod kem;
 mod tcp;
 mod msg;
@@ -212,7 +213,12 @@ impl eframe::App for MainWindow {
                 ui.menu_button("Add", |ui| {
                     ui.add_enabled(!self.thinking, egui::TextEdit::singleline(&mut self.new_peer));
                     ui.horizontal(|ui| {
-                        if ui.add_enabled(msg::is_valid_ip(&self.new_peer) && !self.thinking, egui::Button::new(format!("Verify and add"))).clicked() {
+                        #[allow(unused_assignments)]
+                        let mut allowed = true;
+                        #[allow(unused_assignments)] // it IS being read after being re-assigned :sob:
+                        if &self.new_peer == "127.0.0.1" || &self.new_peer == &self.host { allowed = false }
+                        #[cfg(debug_assertions)] { allowed = true }
+                        if ui.add_enabled(msg::is_valid_ip(&self.new_peer) && !self.thinking && allowed, egui::Button::new(format!("Verify and add"))).clicked() {
                             self.thinking = true;
                             let mut alread_exists = false;
 
@@ -363,7 +369,7 @@ impl eframe::App for MainWindow {
 
                 ui.add_enabled_ui(l > 0 && l <= 2000 && self.current_peer.ip() != String::from("None") && !self.sending, |ui|
                     if ui.button("Send Message").clicked() {
-                        self.sending = false;
+                        self.sending = true;
                         let ip = self.current_peer.ip();
                         let sender = self.new_event.clone();
                         let update_ctx = ctx.clone();
