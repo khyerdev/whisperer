@@ -67,11 +67,18 @@ impl eframe::App for MainWindow {
         match self.listener.try_recv() {
             Ok(event) => match event {
                 Event::IncomingMsg(msg) => {
-                    for history in self.chat_history.iter_mut() {
-                        if history.peer().ip() == msg.author() {
-                            history.push_msg(msg);
-                            break
+                    let mut retries = 0;
+                    'retry_loop: loop {
+                        for history in self.chat_history.iter_mut() {
+                            if history.peer().ip() == msg.author() {
+                                history.push_msg(msg.clone());
+                                break 'retry_loop;
+                            }
                         }
+                        let peers = unsafe {KNOWN_PEERS.read().unwrap().clone()};
+                        msg::try_refresh_history_list(&mut self.chat_history, &peers, true);
+                        retries += 1;
+                        if retries == 2 {break} // womp womp no message for you
                     }
                 }
                 Event::StoreKey(ip, key) => {
@@ -87,8 +94,9 @@ impl eframe::App for MainWindow {
                 Event::NewPeerResult(rec) => {
                     match rec {
                         Some(rec) => {
-                            self.chat_history.push(msg::ChatHistory::new(rec));
+                            self.chat_history.push(msg::ChatHistory::new(rec.clone()));
                             self.new_peer = String::from("SUCCESS");
+                            self.current_peer = rec;
                         },
                         None => self.new_peer = String::from("FAIL: Offline/invalid IP")
                     }
