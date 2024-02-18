@@ -54,7 +54,7 @@ impl From<&str> for Recipient {
     }
 }
 
-pub fn _is_valid_ip(ip: impl ToString) -> bool {
+pub fn is_valid_ip(ip: impl ToString) -> bool {
     let ip = ip.to_string();
     let bytes: Vec<&str> = ip.split_terminator('.').collect();
     if bytes.len() != 4 {return false};

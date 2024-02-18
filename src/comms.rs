@@ -1,5 +1,5 @@
 use crate::{
-    msg, kem,
+    msg, kem, Event,
     tcp::{
         self,
         vector as vect,
@@ -13,7 +13,7 @@ use eframe::egui::Context;
 
 const KEY_SIZE: usize = 16;
 
-pub fn request_handler_thread(win_ctx: Context, sender: mpsc::Sender<msg::Message>) {
+pub fn request_handler_thread(win_ctx: Context, sender: mpsc::Sender<Event>) {
     let port = TcpListener::bind("0.0.0.0:9998").unwrap();
 
     let base_key = Arc::new(vect::rand_byte_vector(KEY_SIZE));
@@ -55,7 +55,7 @@ pub fn request_handler_thread(win_ctx: Context, sender: mpsc::Sender<msg::Messag
 
                     let message = msg::Message::new(author, message);
 
-                    sender.send(message).unwrap();
+                    sender.send(Event::IncomingMsg(message)).unwrap();
                     win_ctx.request_repaint();
                 },
                 tcp::Protocol::Unknown => stream.write_all(&[0u8]).unwrap()
