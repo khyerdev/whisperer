@@ -4,7 +4,6 @@ mod msg;
 mod comms;
 
 use std::{sync::{mpsc, RwLock}, thread};
-use screen_info::DisplayInfo;
 use eframe::egui::{self, Widget};
 use once_cell::sync::Lazy;
 
@@ -17,7 +16,7 @@ static mut KNOWN_PEERS: Lazy<RwLock<Vec<msg::Recipient>>> = Lazy::new(|| {
 
 struct MainWindow {
     host: String,
-    chat_history: Vec<msg::Message>,
+    chat_history: Vec<msg::ChatHistory>,
     new_event: mpsc::Sender<Event>,
     listener: mpsc::Receiver<Event>,
     current_peer: msg::Recipient,
@@ -38,15 +37,20 @@ impl MainWindow {
         let send = sender.clone();
         thread::spawn(move || comms::request_handler_thread(ctx, send));
 
-        let mut peers = Vec::new();
-        peers.push(msg::Recipient::from("None"));
+        let mut starting_peers = Vec::new();
+        starting_peers.push(msg::Recipient::from("None"));
 
-        let first = peers.first().unwrap();
+        let first = starting_peers.first().unwrap();
         let first = first.clone();
+
+        let mut starting_history: Vec<msg::ChatHistory> = Vec::new();
+        starting_history.push(msg::ChatHistory::new(msg::Recipient::from("None")));
+
+        // TODO: read from a file
 
         Self {
             host: host.clone(),
-            chat_history: Vec::new(),
+            chat_history: starting_history,
             new_event: sender,
             listener: receiver,
             current_peer: first,
@@ -63,12 +67,12 @@ impl eframe::App for MainWindow {
         match self.listener.try_recv() {
             Ok(event) => match event {
                 Event::IncomingMsg(msg) => {
-                    self.chat_history.push(
-                        msg::Message::new(
-                            msg.author(),
-                            msg.content()
-                        )
-                    );
+                    for history in self.chat_history.iter_mut() {
+                        if history.peer().ip() == msg.author() {
+                            history.push_msg(msg);
+                            break
+                        }
+                    }
                 }
                 Event::StoreKey(ip, key) => {
                     unsafe {
@@ -83,9 +87,7 @@ impl eframe::App for MainWindow {
                 Event::NewPeerResult(rec) => {
                     match rec {
                         Some(rec) => {
-                            //i had this earlier until i made unknown incoming messages added
-                            //unsafe { KNOWN_PEERS.write().unwrap().push(rec) }
-                            //now im too lazy to change the enum
+                            self.chat_history.push(msg::ChatHistory::new(rec));
                             self.new_peer = String::from("SUCCESS");
                         },
                         None => self.new_peer = String::from("FAIL: Offline/invalid IP")
@@ -128,41 +130,52 @@ impl eframe::App for MainWindow {
                     None => ("Set", "    ")
                 };
                 
-                ui.menu_button(format!("{s}{action} alias{s}"), |ui| {
-                    let l = self.new_alias.len();
-                    let col = match l {
-                        0..=23 => egui::Color32::GRAY,
-                        24..=28 => egui::Color32::YELLOW,
-                        _ => egui::Color32::RED,
-                    };
+                ui.add_enabled_ui(&self.current_peer.ip() != "None", |ui| {
+                    ui.menu_button(format!("{s}{action} alias{s}"), |ui| {
+                        let l = self.new_alias.len();
+                        let col = match l {
+                            0..=23 => egui::Color32::GRAY,
+                            24..=28 => egui::Color32::YELLOW,
+                            _ => egui::Color32::RED,
+                        };
 
-                    ui.text_edit_singleline(&mut self.new_alias);
-                    ui.horizontal(|ui| {
-                        if ui.add_enabled(l > 0 && l <= 28, egui::Button::new(format!("{action}"))).clicked() {
-                            self.current_peer.set_alias(Some(self.new_alias.clone()));
-                            unsafe {
-                                msg::modify_alias(self.current_peer.ip(), Some(self.new_alias.clone()), &mut KNOWN_PEERS.write().unwrap());
+                        ui.text_edit_singleline(&mut self.new_alias);
+                        ui.horizontal(|ui| {
+                            if ui.add_enabled(l > 0 && l <= 28 && &self.new_alias != "You", egui::Button::new(format!("{action}"))).clicked() {
+                                self.current_peer.set_alias(Some(self.new_alias.clone()));
+                                unsafe {
+                                    msg::modify_alias(self.current_peer.ip(), Some(self.new_alias.clone()), &mut KNOWN_PEERS.write().unwrap());
+                                }
+                                for history in self.chat_history.iter_mut() {
+                                    if history.peer().ip() == self.current_peer.ip() {
+                                        history.update_peer(self.current_peer.clone());
+                                    }
+                                }
+                                self.new_alias.clear();
+                                ui.close_menu();
                             }
-                            self.new_alias.clear();
-                            ui.close_menu();
-                        }
-                        if ui.add_enabled(action == "Change", egui::Button::new("Remove")).clicked() {
-                            self.current_peer.set_alias(None);
-                            unsafe {
-                                msg::modify_alias(self.current_peer.ip(), None, &mut KNOWN_PEERS.write().unwrap());
+                            if ui.add_enabled(action == "Change", egui::Button::new("Remove")).clicked() {
+                                self.current_peer.set_alias(None);
+                                unsafe {
+                                    msg::modify_alias(self.current_peer.ip(), None, &mut KNOWN_PEERS.write().unwrap());
+                                }
+                                for history in self.chat_history.iter_mut() {
+                                    if history.peer().ip() == self.current_peer.ip() {
+                                        history.update_peer(self.current_peer.clone());
+                                    }
+                                }
+                                self.new_alias.clear();
+                                ui.close_menu();
                             }
-                            self.new_alias.clear();
-                            ui.close_menu();
-                        }
-                        ui.label(egui::RichText::new(format!("{l}/28")).color(col));
+                            ui.label(egui::RichText::new(format!("{l}/28")).color(col));
+                        });
                     });
                 });
 
                 ui.menu_button("Add", |ui| {
-                    let l = self.new_peer.len();
                     ui.add_enabled(!self.thinking, egui::TextEdit::singleline(&mut self.new_peer));
                     ui.horizontal(|ui| {
-                        if ui.add_enabled(l > 0 && l <= 28 && msg::is_valid_ip(&self.new_peer) && !self.thinking, egui::Button::new(format!("Verify and add"))).clicked() {
+                        if ui.add_enabled(msg::is_valid_ip(&self.new_peer) && !self.thinking, egui::Button::new(format!("Verify and add"))).clicked() {
                             self.thinking = true;
                             let mut alread_exists = false;
 
@@ -209,33 +222,29 @@ impl eframe::App for MainWindow {
                 });
 
                 match self.confirm_remove {
-                    true => if ui.button(" Sure? ").clicked() {
+                    true => if ui.add_enabled(&self.current_peer.ip() != "None", egui::Button::new(" Sure? ")).clicked() {
                         self.confirm_remove = false;
-                        if self.current_peer.ip() != String::from("None") {
-                            unsafe {
-                                let peers_rwlock = KNOWN_PEERS.read().unwrap();
-                                let peers = peers_rwlock.clone();
-                                drop(peers_rwlock);
-                                for (i, peer) in peers.iter().enumerate() {
-                                    if peer == &self.current_peer {
-                                        KNOWN_PEERS.write().unwrap().remove(i);
-                                        break
-                                    }
+                        unsafe {
+                            let peers_rwlock = KNOWN_PEERS.read().unwrap();
+                            let peers = peers_rwlock.clone();
+                            drop(peers_rwlock);
+                            for (i, peer) in peers.iter().enumerate() {
+                                if peer == &self.current_peer {
+                                    KNOWN_PEERS.write().unwrap().remove(i);
+                                    break
                                 }
                             }
                         }
                     },
-                    false => if ui.button("Remove").clicked() {
-                        if self.current_peer.ip() != String::from("None") {
-                            self.confirm_remove = true;
-                            let future_call = self.new_event.clone();
-                            let update_ctx = ctx.clone();
-                            thread::spawn(move || {
-                                thread::sleep(std::time::Duration::from_secs(1));
-                                future_call.send(Event::ConfirmationExpired).unwrap();
-                                update_ctx.request_repaint();
-                            });
-                        }
+                    false => if ui.add_enabled(&self.current_peer.ip() != "None", egui::Button::new("Remove")).clicked() {
+                        self.confirm_remove = true;
+                        let future_call = self.new_event.clone();
+                        let update_ctx = ctx.clone();
+                        thread::spawn(move || {
+                            thread::sleep(std::time::Duration::from_secs(1));
+                            future_call.send(Event::ConfirmationExpired).unwrap();
+                            update_ctx.request_repaint();
+                        });
                     }
                 }
                 
@@ -260,24 +269,29 @@ impl eframe::App for MainWindow {
                     .stick_to_bottom(true)
                     .show(ui, |ui|
                 {
-                    self.chat_history.iter().for_each(|msg| {
-                        let col = match msg.author().as_str() {
-                            "You" => egui::Color32::LIGHT_BLUE,
-                            _ => egui::Color32::LIGHT_RED
-                        };
-
-                        let author = match msg::find_alias(msg.author(), unsafe {&KNOWN_PEERS.read().unwrap()}) {
-                            Some(alias) => alias,
-                            None => msg.author()
-                        };
-
-                        ui.horizontal_wrapped(|ui| {
-                            ui.monospace(egui::RichText::new(
-                                format!("[{}]", author)
-                            ).color(col));
-                            ui.monospace(msg.content());
-                        });
-                    });
+                    for history in self.chat_history.iter() {
+                        if history.peer() == self.current_peer {
+                            history.history().iter().for_each(|msg| {
+                                let col = match msg.author().as_str() {
+                                    "You" => egui::Color32::LIGHT_BLUE,
+                                    _ => egui::Color32::LIGHT_RED
+                                };
+        
+                                let author = match msg::find_alias(msg.author(), unsafe {&KNOWN_PEERS.read().unwrap()}) {
+                                    Some(alias) => alias,
+                                    None => msg.author()
+                                };
+        
+                                ui.horizontal_wrapped(|ui| {
+                                    ui.monospace(egui::RichText::new(
+                                        format!("[{}]", author)
+                                    ).color(col));
+                                    ui.monospace(msg.content());
+                                });
+                            });
+                            break
+                        }
+                    }
                 })
             );
 
@@ -291,12 +305,17 @@ impl eframe::App for MainWindow {
 
                 ui.add_enabled_ui(l > 0 && l <= 2000 && self.current_peer.ip() != String::from("None"), |ui|
                     if ui.button("Send Message").clicked() {
-                        self.chat_history.push(
-                            msg::Message::new(
-                                String::from("You"),
-                                self.draft.clone()
-                            )
-                        );
+                        for history in self.chat_history.iter_mut() {
+                            if history.peer() == self.current_peer {
+                                history.push_msg(
+                                    msg::Message::new(
+                                        String::from("You"),
+                                        self.draft.clone()
+                                    )
+                                );
+                                break
+                            }
+                        }
                         
                         let peer = self.current_peer.clone();
                         let msg = self.draft.clone();
@@ -317,6 +336,10 @@ impl eframe::App for MainWindow {
             ui.label(egui::RichText::new(format!("{l}/2000")).color(col));
         });
     }
+
+    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        // TODO: save to a file
+    }
 }
 
 fn main() {
@@ -325,14 +348,11 @@ fn main() {
     let host = tcp::get_local_ip();
     
     let mut options = eframe::NativeOptions::default();
+    options.centered = true;
     {
         let mut win = egui::ViewportBuilder::default();
         win.min_inner_size = Some(egui::vec2(WIN_SIZE[0], WIN_SIZE[1]));
         win.inner_size = Some(egui::vec2(WIN_SIZE[0], WIN_SIZE[1]));
-
-        let (centerx, centery) = calculate_center_screen(WIN_SIZE[0], WIN_SIZE[1]);
-        win.position = Some(egui::pos2(centerx, centery));
-        //win.resizable = Some(false);
 
         options.viewport = win;
     }
@@ -342,27 +362,6 @@ fn main() {
         options, 
         Box::new(|cc| Box::new(MainWindow::new(cc, host, send, recv)))
     ).unwrap_or(());
-}
-
-// because complexity
-#[inline(always)]
-fn calculate_center_screen(x: f32, y: f32) -> (f32, f32) {
-    let display = DisplayInfo::all().unwrap();
-    let mut res: Option<(u32, u32)> = None;
-    for info in display {
-        match info.is_primary {
-            true => {
-                res = Some((info.width, info.height));
-                break;
-            },
-            false => ()
-        }
-    }
-    let size = res.expect("No primary monitor");
-    (
-        {size.0 as f32 / 2.0 - {x / 2.0}},
-        {size.1 as f32 / 2.0 - {y / 2.0}}
-    )
 }
 
 enum Event {

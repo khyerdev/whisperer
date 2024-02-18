@@ -6,17 +6,8 @@ pub struct Recipient {
     private_key: Option<Vec<u8>>
 }
 impl Recipient {
-    pub fn get_all() -> Vec<Self> {
-        todo!()
-    }
-    pub fn add(addition: impl Into<Recipient>) {
-        todo!()
-    }
     pub fn set_alias(&mut self, alias: Option<String>) {
         self.alias = alias;
-    }
-    pub fn remove(self) {
-        todo!()
     }
     pub fn full_string(&self) -> String {
         match &self.alias {
@@ -88,6 +79,7 @@ pub fn modify_alias(ip: impl ToString, alias: Option<String>, find: &mut Vec<Rec
     }
 }
 
+#[derive(Clone)]
 pub struct Message {
     author: String,
     content: String
@@ -101,5 +93,30 @@ impl Message {
     }
     pub fn content(&self) -> String {
         self.content.clone()
+    }
+}
+
+pub struct ChatHistory {
+    peer: Recipient,
+    history: Vec<Message>
+}
+impl ChatHistory {
+    pub fn new(peer: Recipient) -> Self {
+        Self {
+            peer,
+            history: Vec::new()
+        }
+    }
+    pub fn push_msg(&mut self, msg: Message) {
+        self.history.push(msg)
+    }
+    pub fn peer(&self) -> Recipient {
+        self.peer.clone()
+    }
+    pub fn history(&self) -> Vec<Message> {
+        self.history.clone()
+    }
+    pub fn update_peer(&mut self, new: Recipient) {
+        self.peer = new
     }
 }
