@@ -12,9 +12,8 @@ impl Recipient {
     pub fn add(addition: impl Into<Recipient>) {
         todo!()
     }
-    pub fn set_alias(&mut self, alias: impl ToString) {
-        let alias = alias.to_string();
-        self.alias = Some(alias);
+    pub fn set_alias(&mut self, alias: Option<String>) {
+        self.alias = alias;
     }
     pub fn remove(self) {
         todo!()
@@ -77,9 +76,8 @@ pub fn find_alias(ip: impl ToString, find: &Vec<Recipient>) -> Option<String> {
     }
     None
 }
-pub fn modify_alias(ip: impl ToString, alias: impl ToString, find: &mut Vec<Recipient>) {
+pub fn modify_alias(ip: impl ToString, alias: Option<String>, find: &mut Vec<Recipient>) {
     let ip = ip.to_string();
-    let alias = alias.to_string();
     for rec in find.iter_mut() {
         if rec.ip() == ip {
             rec.set_alias(alias.clone());
