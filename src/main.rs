@@ -15,7 +15,11 @@ struct MainWindow {
     incoming: mpsc::Receiver<msg::Message>,
     known_peers: Vec<msg::Recipient>,
     current_peer: msg::Recipient,
-    draft: String
+    draft: String,
+    addition_dialog: bool,
+    action_viewport: egui::ViewportBuilder,
+    rename_dialog: bool,
+    confirm_remove: bool,
 }
 impl MainWindow {
     fn new(
@@ -35,13 +39,24 @@ impl MainWindow {
         debug.set_alias("AAAAAAAAAAAAAAAAAAAAAAAAAAAA");
         peers.push(debug);
 
+        let mut new_peer_viewport = egui::ViewportBuilder::default();
+        new_peer_viewport.resizable = Some(false);
+        new_peer_viewport.maximize_button = Some(false);
+        new_peer_viewport.inner_size = Some(egui::vec2(250.0, 150.0));
+        let (centerx, centery) = calculate_center_screen(250.0, 150.0);
+        new_peer_viewport.position = Some(egui::pos2(centerx, centery));
+
         Self {
             host: host.clone(),
             chat_history: Vec::new(),
             incoming: receiver,
             known_peers: peers,
             current_peer: msg::Recipient::from(host),
-            draft: String::new()
+            draft: String::new(),
+            addition_dialog: false,
+            action_viewport: new_peer_viewport,
+            rename_dialog: false,
+            confirm_remove: false,
         }
     }
 }
@@ -97,8 +112,8 @@ impl eframe::App for MainWindow {
                     self.current_peer.set_alias("test");
                     msg::modify_alias(self.current_peer.ip(), "test", &mut self.known_peers);
                 }
-                let _ = ui.button("Add");
-                let _ = ui.button("Remove");
+                if ui.button("Add").clicked() {self.addition_dialog = true}
+                if ui.button("Remove").clicked() {self.confirm_remove = true}
             });
 
             let mut margin = egui::Margin::default();
@@ -174,6 +189,45 @@ impl eframe::App for MainWindow {
             };
             ui.label(egui::RichText::new(format!("{l}/2000")).color(col));
         });
+        
+        if self.rename_dialog {
+            let mut viewport = self.action_viewport.clone();
+            viewport.title = Some(String::from("New alias"));
+            ctx.show_viewport_immediate(egui::ViewportId::from_hash_of("change-alias"), viewport, |ctx, _| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+
+                });
+                if ctx.input(|i| i.viewport().close_requested()) {
+                    self.rename_dialog = false;
+                }
+            });
+        }
+
+        if self.addition_dialog {
+            let mut viewport = self.action_viewport.clone();
+            viewport.title = Some(String::from("New peer"));
+            ctx.show_viewport_immediate(egui::ViewportId::from_hash_of("new-peer"), viewport, |ctx, _| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+
+                });
+                if ctx.input(|i| i.viewport().close_requested()) {
+                    self.addition_dialog = false;
+                }
+            });
+        }
+
+        if self.confirm_remove {
+            let mut viewport = self.action_viewport.clone();
+            viewport.title = Some(String::from("Remove peer"));
+            ctx.show_viewport_immediate(egui::ViewportId::from_hash_of("remove-peer"), viewport, |ctx, _| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+
+                });
+                if ctx.input(|i| i.viewport().close_requested()) {
+                    self.confirm_remove = false;
+                }
+            });
+        }
     }
 }
 
