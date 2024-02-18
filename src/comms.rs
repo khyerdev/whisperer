@@ -1,5 +1,5 @@
 use crate::{
-    msg, kem, Event,
+    msg, kem, Event, KNOWN_PEERS,
     tcp::{
         self,
         vector as vect,
@@ -7,7 +7,7 @@ use crate::{
     }
 };
 use std::{
-    io::Write, net::TcpListener, sync::{mpsc, Arc, Mutex}, thread
+    io::Write, net::TcpListener, sync::{mpsc, Arc}, thread
 };
 use eframe::egui::Context;
 
@@ -17,11 +17,10 @@ pub fn request_handler_thread(win_ctx: Context, sender: mpsc::Sender<Event>) {
     let port = TcpListener::bind("0.0.0.0:9998").unwrap();
 
     let base_key = Arc::new(vect::rand_byte_vector(KEY_SIZE));
-    let private_key: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
 
     for req in port.incoming() {
+
         let base_key = Arc::clone(&base_key);
-        let private_key = Arc::clone(&private_key);
 
         let sender = sender.clone();
         let win_ctx = win_ctx.clone();
@@ -34,20 +33,45 @@ pub fn request_handler_thread(win_ctx: Context, sender: mpsc::Sender<Event>) {
                     stream.write_all(&[combined_key.as_slice(), &[255u8]].concat()).unwrap();
                 },
                 tcp::Protocol::CombineKey => {
-                    let mut mutex = private_key.lock().unwrap();
-                    *mutex = vect::and_vector(base_key.to_vec(), data);
-                    drop(mutex);
+                    let author = stream.peer_addr().unwrap().to_string();
+                    let author = trim_port(author);
+
+                    let private_key = vect::and_vector(base_key.to_vec(), data);
+
+                    unsafe {
+                        let mut peers = KNOWN_PEERS.write().unwrap();
+                        let mut written = false;
+                        for peer in peers.iter_mut() {
+                            if peer.ip() == author.clone() {
+                                written = true;
+                                peer.set_private_key(private_key.clone());
+                                break
+                            }
+                        }
+                        if !written {
+                            let mut incoming = msg::Recipient::from(author);
+                            incoming.set_private_key(private_key);
+                            peers.push(incoming);
+                        }
+                    }
 
                     stream.write_all(&[0u8]).unwrap();
                 },
                 tcp::Protocol::Message => {
-                    let key = {
-                        let mutex = private_key.lock().unwrap();
-                        mutex.clone()
-                    };
-
                     let author = stream.peer_addr().unwrap().to_string();
                     let author = trim_port(author);
+
+                    let key = unsafe {
+                        let rwlock = KNOWN_PEERS.read().unwrap();
+                        let mut key: Option<Vec<u8>> = None;
+                        for peer in rwlock.iter() {
+                            if peer.ip() == author.clone() {
+                                key = peer.private_key();
+                                break
+                            }
+                        }
+                        key.expect("No private key found for incoming message")
+                    };
 
                     let message = kem::decrypt(data, key);
                     let message = vect::bytes_to_string(message);

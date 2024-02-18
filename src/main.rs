@@ -3,18 +3,23 @@ mod tcp;
 mod msg;
 mod comms;
 
-use std::{sync::mpsc, thread};
+use std::{sync::{mpsc, RwLock}, thread};
 use screen_info::DisplayInfo;
 use eframe::egui::{self, Widget};
+use once_cell::sync::Lazy;
 
 const WIN_SIZE: [f32; 2] = [600.0, 400.0];
+static mut KNOWN_PEERS: Lazy<RwLock<Vec<msg::Recipient>>> = Lazy::new(|| {
+    let mut vec: Vec<msg::Recipient> = Vec::new();
+    vec.push(msg::Recipient::from("None"));
+    RwLock::new(vec)
+});
 
 struct MainWindow {
     host: String,
     chat_history: Vec<msg::Message>,
     new_event: mpsc::Sender<Event>,
     listener: mpsc::Receiver<Event>,
-    known_peers: Vec<msg::Recipient>,
     current_peer: msg::Recipient,
     draft: String,
     new_alias: String,
@@ -44,7 +49,6 @@ impl MainWindow {
             chat_history: Vec::new(),
             new_event: sender,
             listener: receiver,
-            known_peers: peers,
             current_peer: first,
             draft: String::new(),
             new_alias: String::new(),
@@ -67,17 +71,21 @@ impl eframe::App for MainWindow {
                     );
                 }
                 Event::StoreKey(ip, key) => {
-                    for peer in self.known_peers.iter_mut() {
-                        if peer.ip() == ip {
-                            peer.set_private_key(key);
-                            break
+                    unsafe {
+                        for peer in KNOWN_PEERS.write().unwrap().iter_mut() {
+                            if peer.ip() == ip {
+                                peer.set_private_key(key);
+                                break
+                            }
                         }
                     }
                 },
                 Event::NewPeerResult(rec) => {
                     match rec {
                         Some(rec) => {
-                            self.known_peers.push(rec);
+                            //i had this earlier until i made unknown incoming messages added
+                            //unsafe { KNOWN_PEERS.write().unwrap().push(rec) }
+                            //now im too lazy to change the enum
                             self.new_peer = String::from("SUCCESS");
                         },
                         None => self.new_peer = String::from("FAIL: Offline/invalid IP")
@@ -106,7 +114,7 @@ impl eframe::App for MainWindow {
                     .selected_text(egui::RichText::new(self.current_peer.full_string()).monospace())
                     .show_ui(ui, |ui|
                 {
-                    for peer in self.known_peers.iter() {
+                    for peer in unsafe {KNOWN_PEERS.read().unwrap().iter()} {
                         ui.selectable_value(
                             &mut self.current_peer,
                             peer.clone(),
@@ -132,15 +140,17 @@ impl eframe::App for MainWindow {
                     ui.horizontal(|ui| {
                         if ui.add_enabled(l > 0 && l <= 28, egui::Button::new(format!("{action}"))).clicked() {
                             self.current_peer.set_alias(Some(self.new_alias.clone()));
-                            msg::modify_alias(self.current_peer.ip(), Some(self.new_alias.clone()), &mut self.known_peers);
-
+                            unsafe {
+                                msg::modify_alias(self.current_peer.ip(), Some(self.new_alias.clone()), &mut KNOWN_PEERS.write().unwrap());
+                            }
                             self.new_alias.clear();
                             ui.close_menu();
                         }
                         if ui.add_enabled(action == "Change", egui::Button::new("Remove")).clicked() {
                             self.current_peer.set_alias(None);
-                            msg::modify_alias(self.current_peer.ip(), None, &mut self.known_peers);
-
+                            unsafe {
+                                msg::modify_alias(self.current_peer.ip(), None, &mut KNOWN_PEERS.write().unwrap());
+                            }
                             self.new_alias.clear();
                             ui.close_menu();
                         }
@@ -154,27 +164,43 @@ impl eframe::App for MainWindow {
                     ui.horizontal(|ui| {
                         if ui.add_enabled(l > 0 && l <= 28 && msg::is_valid_ip(&self.new_peer) && !self.thinking, egui::Button::new(format!("Verify and add"))).clicked() {
                             self.thinking = true;
+                            let mut alread_exists = false;
 
-                            let ip = self.new_peer.clone();
-                            let sender = self.new_event.clone();
-                            let update_ctx = ctx.clone();
-                            
-                            thread::spawn(move || {
-                                match tcp::check_availability(&format!("{}:9998", ip.clone())) {
-                                    Ok(_) => {
-                                        match comms::make_keypair(ip.clone()) {
-                                            Ok(key) => {
-                                                let mut rec = msg::Recipient::from(ip);
-                                                rec.set_private_key(key);
-                                                sender.send(Event::NewPeerResult(Some(rec))).unwrap();
-                                            },
-                                            Err(_) => sender.send(Event::NewPeerResult(None)).unwrap()
-                                        }
-                                    },
-                                    Err(_) => sender.send(Event::NewPeerResult(None)).unwrap(),
+                            unsafe {
+                                for peer in KNOWN_PEERS.read().unwrap().iter() {
+                                    if peer.ip() == self.new_peer.clone() {
+                                        alread_exists = true;
+                                        break
+                                    }
                                 }
-                                update_ctx.request_repaint();
-                            });
+                            }
+
+                            if alread_exists {
+                                self.new_peer = String::from("IP already added");
+                                self.thinking = false;
+                            } else {
+                                let ip = self.new_peer.clone();
+                                let sender = self.new_event.clone();
+                                let update_ctx = ctx.clone();
+                                
+                                thread::spawn(move || {
+                                    match tcp::check_availability(&format!("{}:9998", ip.clone())) {
+                                        Ok(_) => {
+                                            match comms::make_keypair(ip.clone()) {
+                                                Ok(key) => {
+                                                    let mut rec = msg::Recipient::from(ip);
+                                                    rec.set_private_key(key);
+                                                    sender.send(Event::NewPeerResult(Some(rec))).unwrap();
+                                                },
+                                                Err(_) => sender.send(Event::NewPeerResult(None)).unwrap()
+                                            }
+                                        },
+                                        Err(_) => sender.send(Event::NewPeerResult(None)).unwrap(),
+                                    }
+                                    update_ctx.request_repaint();
+                                });
+                            }
+
                         }
                         if self.thinking {
                             ui.spinner();
@@ -186,10 +212,15 @@ impl eframe::App for MainWindow {
                     true => if ui.button(" Sure? ").clicked() {
                         self.confirm_remove = false;
                         if self.current_peer.ip() != String::from("None") {
-                            for (i, peer) in self.known_peers.iter().enumerate() {
-                                if peer == &self.current_peer {
-                                    self.known_peers.remove(i);
-                                    break
+                            unsafe {
+                                let peers_rwlock = KNOWN_PEERS.read().unwrap();
+                                let peers = peers_rwlock.clone();
+                                drop(peers_rwlock);
+                                for (i, peer) in peers.iter().enumerate() {
+                                    if peer == &self.current_peer {
+                                        KNOWN_PEERS.write().unwrap().remove(i);
+                                        break
+                                    }
                                 }
                             }
                         }
@@ -235,7 +266,7 @@ impl eframe::App for MainWindow {
                             _ => egui::Color32::LIGHT_RED
                         };
 
-                        let author = match msg::find_alias(msg.author(), &self.known_peers) {
+                        let author = match msg::find_alias(msg.author(), unsafe {&KNOWN_PEERS.read().unwrap()}) {
                             Some(alias) => alias,
                             None => msg.author()
                         };

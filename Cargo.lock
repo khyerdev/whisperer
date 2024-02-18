@@ -3080,6 +3080,7 @@ name = "whisperer"
 version = "0.1.0"
 dependencies = [
  "eframe",
+ "once_cell",
  "rand",
  "screen-info",
 ]
