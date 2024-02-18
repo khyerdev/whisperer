@@ -64,12 +64,15 @@ pub fn request_handler_thread(win_ctx: Context, sender: mpsc::Sender<Event>) {
     }
 }
 
-pub fn send_message(peer: msg::Recipient, msg: String) {
+pub fn send_message(peer: msg::Recipient, msg: String, key_callback: mpsc::Sender<Event>, ctx_update: Context) {
     let ip = format!("{}:9998", peer.ip());
     let key = match peer.private_key() {
         Some(key) => key,
         None => {
-            make_keypair(&ip).unwrap()
+            let key = make_keypair(&ip).unwrap();
+            key_callback.send(Event::StoreKey(ip.clone(), key.clone())).unwrap();
+            ctx_update.request_repaint();
+            key
         }
     };
 
