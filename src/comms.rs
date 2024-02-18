@@ -70,7 +70,12 @@ pub fn request_handler_thread(win_ctx: Context, sender: mpsc::Sender<Event>) {
                                 break
                             }
                         }
-                        key.expect("No private key found for incoming message")
+                        drop(rwlock);
+                        let key = match key {
+                            Some(k) => k,
+                            None => make_keypair(author.clone()).unwrap()
+                        };
+                        key
                     };
 
                     let message = kem::decrypt(data, key);
