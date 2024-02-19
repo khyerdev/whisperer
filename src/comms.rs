@@ -46,7 +46,7 @@ pub fn request_handler_thread(win_ctx: Context, sender: mpsc::Sender<Event>) {
                         for peer in peers.iter_mut() {
                             if peer.ip() == author.clone() {
                                 written = true;
-                                println!("OVERWRITE PUBLIC KEY");
+                                println!("OVERWRITE PRIVATE KEY");
                                 peer.set_private_key(private_key.clone());
                                 break
                             }
@@ -89,6 +89,7 @@ pub fn request_handler_thread(win_ctx: Context, sender: mpsc::Sender<Event>) {
                                 let mut existing = false;
                                 for peer in wlock.iter_mut() {
                                     if peer.ip() == author.clone() {
+                                        println!("REWRITING KEY");
                                         peer.set_private_key(new_key.clone());
                                         existing = true;
                                         break
@@ -96,6 +97,7 @@ pub fn request_handler_thread(win_ctx: Context, sender: mpsc::Sender<Event>) {
                                 }
                                 drop(wlock);
                                 if !existing {
+                                    println!("ADDING NEW RECIPIENT FROM REBUILT KEY");
                                     let mut addition = msg::Recipient::from(author.clone());
                                     addition.set_private_key(new_key.clone());
                                     KNOWN_PEERS.write().unwrap().push(addition);
