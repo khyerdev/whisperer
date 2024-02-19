@@ -79,7 +79,7 @@ pub fn modify_alias(ip: impl ToString, alias: Option<String>, find: &mut Vec<Rec
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct Message {
     author: String,
     content: String
@@ -109,6 +109,9 @@ impl ChatHistory {
     }
     pub fn push_msg(&mut self, msg: Message) {
         self.history.push(msg)
+    }
+    pub fn pop_msg(&mut self) -> Message {
+        self.history.pop().unwrap_or_default()
     }
     pub fn peer(&self) -> Recipient {
         self.peer.clone()
