@@ -71,6 +71,7 @@ pub fn request_handler_thread(win_ctx: Context, sender: mpsc::Sender<Event>) {
                     let author = stream.peer_addr().unwrap().to_string();
                     let author = trim_port(author);
 
+                    let mut can_show = true;
                     let key = unsafe {
                         let rlock = KNOWN_PEERS.read().unwrap();
                         let mut key: Option<Vec<u8>> = None;
@@ -86,6 +87,7 @@ pub fn request_handler_thread(win_ctx: Context, sender: mpsc::Sender<Event>) {
                             Some(k) => k,
                             None => {
                                 println!("NO KEY FOUND, REBUILDING");
+                                can_show = false;
                                 let new_key = make_keypair(author.clone()).unwrap();
                                 let mut wlock = KNOWN_PEERS.write().unwrap();
                                 let mut existing = false;
@@ -110,16 +112,27 @@ pub fn request_handler_thread(win_ctx: Context, sender: mpsc::Sender<Event>) {
                         key
                     };
 
-                    let message = kem::decrypt(data, key);
-                    let message = vect::bytes_to_string(message);
+                    stream.write_all(&[0u8]).unwrap();
+                    if can_show {
+                        let message = kem::decrypt(data, key);
+                        let message = vect::bytes_to_string(message);
+                        let message = msg::Message::new(author, message);
+                        sender.send(Event::IncomingMsg(message)).unwrap();
+                        win_ctx.request_repaint();
+                    } else {
+                        println!("REQUEST RESEND");
+                        tcp::request_resend(&format!("{author}:9998")).unwrap();
+                    }
+                },
+                tcp::Protocol::Resend => {
+                    let author = stream.peer_addr().unwrap().to_string();
+                    let author = trim_port(author);
                     stream.write_all(&[0u8]).unwrap();
 
-                    let message = msg::Message::new(author, message);
-
-                    sender.send(Event::IncomingMsg(message)).unwrap();
+                    sender.send(Event::ResendLast(author)).unwrap();
                     win_ctx.request_repaint();
                 },
-                tcp::Protocol::Unknown => stream.write_all(&[0u8]).unwrap()
+                tcp::Protocol::Unknown => stream.write_all(&[1u8]).unwrap()
             });
         });
     }
