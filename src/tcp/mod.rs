@@ -94,8 +94,19 @@ pub fn send_mixed_key(ip: &str, key: Vec<u8>) -> Result<(), Error> {
     Ok(null_response(empty)?)
 }
 
+/// Request the other end to re-send their message
+pub fn request_resend(ip: &str) -> Result<(), Error> {
+    let mut stream = TcpStream::connect(ip)?;
+    stream.write_all(&["RESEND\0".as_bytes(), &[255u8]].concat())?;
+
+    let mut empty = [255u8; 1];
+    stream.read(&mut empty).unwrap();
+    
+    Ok(null_response(empty)?)
+}
+
 pub enum Protocol {
-    PublicKey, CombineKey, Message, Unknown
+    PublicKey, CombineKey, Message, Resend, Unknown
 }
 impl From<String> for Protocol {
     fn from(value: String) -> Self {
@@ -104,6 +115,7 @@ impl From<String> for Protocol {
             "PUBLICKEY" => Self::PublicKey,
             "COMBINEKEY" => Self::CombineKey,
             "MESSAGE" => Self::Message,
+            "RESEND" => Self::Message,
             _ => Self::Unknown
         }
     }
