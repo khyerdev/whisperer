@@ -125,7 +125,7 @@ impl From<String> for Protocol {
             "PUBLICKEY" => Self::PublicKey,
             "COMBINEKEY" => Self::CombineKey,
             "MESSAGE" => Self::Message,
-            "RESEND" => Self::Message,
+            "RESEND" => Self::Resend,
             _ => Self::Unknown
         }
     }
