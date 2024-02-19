@@ -82,9 +82,9 @@ impl eframe::App for MainWindow {
                                 break 'retry_loop;
                             }
                         }
-                        if retries == 2 {break} // womp womp no message for you
+                        if retries == 2 {break}
                         let peers = unsafe {KNOWN_PEERS.read().unwrap().clone()};
-                        println!("NO PEER FOUND");
+                        println!("NO PEER FOUND {}", retries + 1);
                         msg::try_refresh_history_list(&mut self.chat_history, &peers, true);
                         retries += 1;
                     }
@@ -120,6 +120,7 @@ impl eframe::App for MainWindow {
                     } else {
                         for history in self.chat_history.iter_mut() {
                             if history.peer() == self.current_peer {
+                                println!("PUSH OWN MESSAGE");
                                 history.push_msg(
                                     msg::Message::new(
                                         String::from("You"),
@@ -134,11 +135,17 @@ impl eframe::App for MainWindow {
                         let msg = self.draft.clone();
                         let callback = self.new_event.clone();
                         let ctx_update = ctx.clone();
+                        println!("SEND MESSAGE");
                         thread::spawn(move || comms::send_message(peer, msg, callback, ctx_update));
                         
                         self.draft.clear();
                         self.sending = false;
                     }
+                },
+                Event::UpdateChatHistory => {
+                    println!("UPDATE CHAT HISTORY");
+                    let peers = unsafe {KNOWN_PEERS.read().unwrap().clone()};
+                    msg::try_refresh_history_list(&mut self.chat_history, &peers, true);
                 }
                 Event::ConfirmationExpired => self.confirm_remove = false
             }
@@ -438,5 +445,6 @@ enum Event {
     StoreKey(String, Vec<u8>),
     NewPeerResult(Option<msg::Recipient>),
     SendMessage(bool),
+    UpdateChatHistory,
     ConfirmationExpired
 }

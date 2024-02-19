@@ -56,6 +56,7 @@ pub fn request_handler_thread(win_ctx: Context, sender: mpsc::Sender<Event>) {
                             let mut incoming = msg::Recipient::from(author);
                             incoming.set_private_key(private_key);
                             peers.push(incoming);
+                            sender.send(Event::UpdateChatHistory).unwrap();
                         }
                     }
 
@@ -67,21 +68,37 @@ pub fn request_handler_thread(win_ctx: Context, sender: mpsc::Sender<Event>) {
                     let author = trim_port(author);
 
                     let key = unsafe {
-                        let rwlock = KNOWN_PEERS.read().unwrap();
+                        let rlock = KNOWN_PEERS.read().unwrap();
                         let mut key: Option<Vec<u8>> = None;
-                        for peer in rwlock.iter() {
+                        for peer in rlock.iter() {
                             if peer.ip() == author.clone() {
                                 println!("FOUND DECRYPT KEY");
                                 key = peer.private_key();
                                 break
                             }
                         }
-                        drop(rwlock);
+                        drop(rlock);
                         let key = match key {
                             Some(k) => k,
                             None => {
                                 println!("NO KEY FOUND, REBUILDING");
-                                make_keypair(author.clone()).unwrap()
+                                let new_key = make_keypair(author.clone()).unwrap();
+                                let mut wlock = KNOWN_PEERS.write().unwrap();
+                                let mut existing = false;
+                                for peer in wlock.iter_mut() {
+                                    if peer.ip() == author.clone() {
+                                        peer.set_private_key(new_key.clone());
+                                        existing = true;
+                                        break
+                                    }
+                                }
+                                drop(wlock);
+                                if !existing {
+                                    let mut addition = msg::Recipient::from(author.clone());
+                                    addition.set_private_key(new_key.clone());
+                                    KNOWN_PEERS.write().unwrap().push(addition);
+                                }
+                                new_key
                             }
                         };
                         key
