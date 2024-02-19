@@ -10,6 +10,7 @@ use once_cell::sync::Lazy;
 
 const WIN_SIZE: [f32; 2] = [600.0, 400.0];
 static mut KNOWN_PEERS: Lazy<RwLock<Vec<msg::Recipient>>> = Lazy::new(|| {
+    println!("INIT DATA");
     let mut vec: Vec<msg::Recipient> = Vec::new();
     vec.push(msg::Recipient::from("None"));
     RwLock::new(vec)
@@ -50,6 +51,7 @@ impl MainWindow {
 
         // TODO: read from a file
 
+        println!("INIT APP");
         Self {
             host: host.clone(),
             chat_history: starting_history,
@@ -70,24 +72,29 @@ impl eframe::App for MainWindow {
         match self.listener.try_recv() {
             Ok(event) => match event {
                 Event::IncomingMsg(msg) => {
+                    println!("MESSAGE RECEIVED ON FRONTEND");
                     let mut retries = 0;
                     'retry_loop: loop {
                         for history in self.chat_history.iter_mut() {
                             if history.peer().ip() == msg.author() {
                                 history.push_msg(msg.clone());
+                                println!("MESSAGE PROCESSED");
                                 break 'retry_loop;
                             }
                         }
+                        if retries == 2 {break} // womp womp no message for you
                         let peers = unsafe {KNOWN_PEERS.read().unwrap().clone()};
+                        println!("NO PEER FOUND");
                         msg::try_refresh_history_list(&mut self.chat_history, &peers, true);
                         retries += 1;
-                        if retries == 2 {break} // womp womp no message for you
                     }
                 }
                 Event::StoreKey(ip, key) => {
+                    println!("STORING KEY");
                     unsafe {
                         for peer in KNOWN_PEERS.write().unwrap().iter_mut() {
                             if peer.ip() == ip {
+                                println!("KEY STORED");
                                 peer.set_private_key(key);
                                 break
                             }
@@ -97,6 +104,7 @@ impl eframe::App for MainWindow {
                 Event::NewPeerResult(rec) => {
                     match rec {
                         Some(rec) => {
+                            println!("NEW PEER INCOMING");
                             unsafe {KNOWN_PEERS.write().unwrap().push(rec.clone())}
                             self.chat_history.push(msg::ChatHistory::new(rec.clone()));
                             self.new_peer = String::from("SUCCESS");

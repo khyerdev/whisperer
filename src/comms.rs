@@ -29,10 +29,12 @@ pub fn request_handler_thread(win_ctx: Context, sender: mpsc::Sender<Event>) {
 
             stream.parse_incoming(|stream, protocol, data| match protocol {
                 tcp::Protocol::PublicKey => {
+                    println!("GENERATE COMBINED KEY AND SHIP");
                     let combined_key = vect::and_vector(base_key.to_vec(), data);
                     stream.write_all(&[combined_key.as_slice(), &[255u8]].concat()).unwrap();
                 },
                 tcp::Protocol::CombineKey => {
+                    println!("GENERATE PUBLIC KEY FROM COMBINED KEY");
                     let author = stream.peer_addr().unwrap().to_string();
                     let author = trim_port(author);
 
@@ -44,11 +46,13 @@ pub fn request_handler_thread(win_ctx: Context, sender: mpsc::Sender<Event>) {
                         for peer in peers.iter_mut() {
                             if peer.ip() == author.clone() {
                                 written = true;
+                                println!("OVERWRITE PUBLIC KEY");
                                 peer.set_private_key(private_key.clone());
                                 break
                             }
                         }
                         if !written {
+                            println!("SAVE NEW RECIPIENT");
                             let mut incoming = msg::Recipient::from(author);
                             incoming.set_private_key(private_key);
                             peers.push(incoming);
@@ -58,6 +62,7 @@ pub fn request_handler_thread(win_ctx: Context, sender: mpsc::Sender<Event>) {
                     stream.write_all(&[0u8]).unwrap();
                 },
                 tcp::Protocol::Message => {
+                    println!("MESSAGE RECEIVED ON BACKEND");
                     let author = stream.peer_addr().unwrap().to_string();
                     let author = trim_port(author);
 
@@ -66,6 +71,7 @@ pub fn request_handler_thread(win_ctx: Context, sender: mpsc::Sender<Event>) {
                         let mut key: Option<Vec<u8>> = None;
                         for peer in rwlock.iter() {
                             if peer.ip() == author.clone() {
+                                println!("FOUND DECRYPT KEY");
                                 key = peer.private_key();
                                 break
                             }
@@ -73,7 +79,10 @@ pub fn request_handler_thread(win_ctx: Context, sender: mpsc::Sender<Event>) {
                         drop(rwlock);
                         let key = match key {
                             Some(k) => k,
-                            None => make_keypair(author.clone()).unwrap()
+                            None => {
+                                println!("NO KEY FOUND, REBUILDING");
+                                make_keypair(author.clone()).unwrap()
+                            }
                         };
                         key
                     };
@@ -121,7 +130,7 @@ pub fn make_keypair(ip: impl ToString) -> Result<Vec<u8>, std::io::Error> {
     Ok(vect::and_vector(mixed_key, base_key))
 }
 
-#[inline]
+#[inline(always)]
 fn trim_port(ip: String) -> String {
     let parts: Vec<&str> = ip.split_terminator(':').collect();
     parts[0].to_string()
