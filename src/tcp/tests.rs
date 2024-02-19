@@ -84,7 +84,7 @@ fn sending_receiving() {
 
                     stream.write_all(&[0u8]).unwrap()
                 },
-                Protocol::Unknown => stream.write_all(&[0u8]).unwrap()
+                _ => stream.write_all(&[0u8]).unwrap()
             });
         });
         threads.push(handle);
