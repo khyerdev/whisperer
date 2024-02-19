@@ -145,7 +145,7 @@ impl eframe::App for MainWindow {
                 Event::UpdateChatHistory => {
                     println!("UPDATE CHAT HISTORY");
                     let peers = unsafe {KNOWN_PEERS.read().unwrap().clone()};
-                    msg::try_refresh_history_list(&mut self.chat_history, &peers, true);
+                    msg::try_refresh_history_list(&mut self.chat_history, &peers, false);
                 }
                 Event::ConfirmationExpired => self.confirm_remove = false
             }

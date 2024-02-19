@@ -56,7 +56,9 @@ pub fn request_handler_thread(win_ctx: Context, sender: mpsc::Sender<Event>) {
                             let mut incoming = msg::Recipient::from(author);
                             incoming.set_private_key(private_key);
                             peers.push(incoming);
+                            drop(peers);
                             sender.send(Event::UpdateChatHistory).unwrap();
+                            win_ctx.request_repaint();
                         }
                     }
 
