@@ -154,6 +154,34 @@ impl eframe::App for MainWindow {
                         self.sending = false;
                     }
                 },
+                Event::ResendLast(ip) => {
+                    let mut last_msg: Option<msg::Message> = None;
+                    for history in self.chat_history.iter_mut() {
+                        if history.peer().ip() == ip {
+                            println!("POP SENT MESSAGE");
+                            last_msg = Some(history.pop_msg());
+                            self.current_peer = history.peer();
+                            break
+                        }
+                    }
+                    
+                    if let Some(msg) = last_msg {
+                        println!("RESEND MESSAGE");
+                        self.sending = true;
+                        
+                        self.draft = msg.content();
+                        let ip = self.current_peer.ip();
+                        let sender = self.new_event.clone();
+                        let update_ctx = ctx.clone();
+                        thread::spawn(move || {
+                            match tcp::check_availability(&format!("{ip}:9998")) {
+                                Ok(()) => sender.send(Event::SendMessage(true)).unwrap(),
+                                Err(_) => sender.send(Event::SendMessage(false)).unwrap()
+                            }
+                            update_ctx.request_repaint();
+                        });
+                    }
+                },
                 Event::UpdateChatHistory => {
                     println!("UPDATE CHAT HISTORY");
                     let peers = unsafe {KNOWN_PEERS.read().unwrap().clone()};
@@ -176,18 +204,20 @@ impl eframe::App for MainWindow {
 
             ui.horizontal(|ui| {
                 ui.label("Peer:");
-                egui::ComboBox::from_id_source("choose-peer")
-                    .width(width - 225.0)
-                    .selected_text(egui::RichText::new(self.current_peer.full_string()).monospace())
-                    .show_ui(ui, |ui|
-                {
-                    for peer in unsafe {KNOWN_PEERS.read().unwrap().iter()} {
-                        ui.selectable_value(
-                            &mut self.current_peer,
-                            peer.clone(),
-                            egui::RichText::new(peer.full_string()).monospace()
-                        );
-                    }
+                ui.add_enabled_ui(!self.sending, |ui| {
+                    egui::ComboBox::from_id_source("choose-peer")
+                        .width(width - 225.0)
+                        .selected_text(egui::RichText::new(self.current_peer.full_string()).monospace())
+                        .show_ui(ui, |ui|
+                    {
+                        for peer in unsafe {KNOWN_PEERS.read().unwrap().iter()} {
+                            ui.selectable_value(
+                                &mut self.current_peer,
+                                peer.clone(),
+                                egui::RichText::new(peer.full_string()).monospace()
+                            );
+                        }
+                    });
                 });
 
                 let (action, s) = match self.current_peer.alias() {
@@ -458,6 +488,7 @@ enum Event {
     NewPeerResult(Option<msg::Recipient>),
     OverwritePeer(msg::Recipient),
     SendMessage(bool),
+    ResendLast(String),
     UpdateChatHistory,
     ConfirmationExpired
 }
