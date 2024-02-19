@@ -125,6 +125,7 @@ pub fn request_handler_thread(win_ctx: Context, sender: mpsc::Sender<Event>) {
                     }
                 },
                 tcp::Protocol::Resend => {
+                    println!("REQUESTED TO RESEND");
                     let author = stream.peer_addr().unwrap().to_string();
                     let author = trim_port(author);
                     stream.write_all(&[0u8]).unwrap();
