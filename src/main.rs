@@ -114,6 +114,18 @@ impl eframe::App for MainWindow {
                     }
                     self.thinking = false;
                 },
+                Event::OverwritePeer(rec) => {
+                    if self.current_peer.ip() == rec.ip() {
+                        self.current_peer = rec.clone();
+                    }
+                    for history in self.chat_history.iter_mut() {
+                        if history.peer().ip() == rec.ip() {
+                            history.update_peer(rec);
+                            println!("PEER OVERWRITTEN");
+                            break
+                        }
+                    }
+                },
                 Event::SendMessage(success) => {
                     if !success {
                         self.sending = false;
@@ -444,6 +456,7 @@ enum Event {
     IncomingMsg(msg::Message),
     StoreKey(String, Vec<u8>),
     NewPeerResult(Option<msg::Recipient>),
+    OverwritePeer(msg::Recipient),
     SendMessage(bool),
     UpdateChatHistory,
     ConfirmationExpired

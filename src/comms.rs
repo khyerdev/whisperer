@@ -48,6 +48,8 @@ pub fn request_handler_thread(win_ctx: Context, sender: mpsc::Sender<Event>) {
                                 written = true;
                                 println!("OVERWRITE PRIVATE KEY");
                                 peer.set_private_key(private_key.clone());
+                                sender.send(Event::OverwritePeer(peer.clone())).unwrap();
+                                win_ctx.request_repaint();
                                 break
                             }
                         }
