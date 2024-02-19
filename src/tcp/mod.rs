@@ -59,6 +59,8 @@ pub fn check_availability(ip: &str) -> Result<(), Error> {
 /// Send an encrypted message using khyernet's custom protocol.
 pub fn encrypted_send(ip: &str, message: &str, key: Vec<u8>) -> Result<(), Error> {
     let mut stream = TcpStream::connect(ip)?;
+    stream.set_read_timeout(Some(Duration::from_secs(10))).unwrap();
+    stream.set_write_timeout(Some(Duration::from_secs(10))).unwrap();
 
     let bytes = vect::bytes_from_string(message);
     let bytes = kem::encrypt(bytes, key);
@@ -73,6 +75,8 @@ pub fn encrypted_send(ip: &str, message: &str, key: Vec<u8>) -> Result<(), Error
 /// Send a public key to the other end, expect the other end's mixed key back.
 pub fn send_public_key(ip: &str, key: Vec<u8>) -> Result<Vec<u8>, Error> {
     let mut stream = TcpStream::connect(ip)?;
+    stream.set_read_timeout(Some(Duration::from_secs(10))).unwrap();
+    stream.set_write_timeout(Some(Duration::from_secs(10))).unwrap();
     
     stream.write_all(&["PUBLICKEY\0".as_bytes(), &key, &[255u8]].concat())?;
         
@@ -86,6 +90,9 @@ pub fn send_public_key(ip: &str, key: Vec<u8>) -> Result<Vec<u8>, Error> {
 /// Send a mixed key to the other end, expect the other end to form their private key.
 pub fn send_mixed_key(ip: &str, key: Vec<u8>) -> Result<(), Error> {
     let mut stream = TcpStream::connect(ip)?;
+    stream.set_read_timeout(Some(Duration::from_secs(10))).unwrap();
+    stream.set_write_timeout(Some(Duration::from_secs(10))).unwrap();
+    
     stream.write_all(&["COMBINEKEY\0".as_bytes(), &key, &[255u8]].concat())?;
 
     let mut empty = [255u8; 1];
@@ -97,6 +104,9 @@ pub fn send_mixed_key(ip: &str, key: Vec<u8>) -> Result<(), Error> {
 /// Request the other end to re-send their message
 pub fn request_resend(ip: &str) -> Result<(), Error> {
     let mut stream = TcpStream::connect(ip)?;
+    stream.set_read_timeout(Some(Duration::from_secs(10))).unwrap();
+    stream.set_write_timeout(Some(Duration::from_secs(10))).unwrap();
+    
     stream.write_all(&["RESEND\0".as_bytes(), &[255u8]].concat())?;
 
     let mut empty = [255u8; 1];
