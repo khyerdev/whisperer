@@ -6,5 +6,6 @@ Data sender to send data between computers on your local network
 - Press ENTER to send
 - Clear IP entry field on focus
 - Save chat history and private keys to a file
+- Add icon
 
 It is in a usable state now that all major bugs are fixed!!!!
