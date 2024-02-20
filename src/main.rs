@@ -196,8 +196,15 @@ impl eframe::App for MainWindow {
             let width = ui.available_width();
             let height = ui.available_height();
 
+            #[allow(unused_assignments)] // guh
+            let mut os = format!("{:?}", ctx.os());
+            #[cfg(target_os = "linux")]
+            {
+                os = String::from("Linux");
+            }
+
             ui.vertical_centered(|ui| {
-                ui.heading(format!("Whisperer @ {} on {:?}", &self.host, ctx.os()));
+                ui.heading(format!("Whisperer @ {} on {}", &self.host, os));
             });
 
             ui.separator();
@@ -425,7 +432,7 @@ impl eframe::App for MainWindow {
                 );
 
                 ui.add_enabled_ui(l > 0 && l <= 2000 && self.current_peer.ip() != String::from("None") && !self.sending, |ui|
-                    if ui.button("Send Message").clicked() {
+                    if ui.button("Send Message").clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter) && l > 0 && l <= 2000) {
                         self.sending = true;
                         let ip = self.current_peer.ip();
                         let sender = self.new_event.clone();
