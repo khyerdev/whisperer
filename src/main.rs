@@ -243,7 +243,7 @@ impl eframe::App for MainWindow {
 
                         ui.text_edit_singleline(&mut self.new_alias);
                         ui.horizontal(|ui| {
-                            if ui.add_enabled(l > 0 && l <= 28 && &self.new_alias != "You", egui::Button::new(format!("{action}"))).clicked() {
+                            if ui.add_enabled(l > 0 && l <= 28 && &self.new_alias.to_lowercase() != "you", egui::Button::new(format!("{action}"))).clicked() {
                                 self.current_peer.set_alias(Some(self.new_alias.clone()));
                                 unsafe {
                                     msg::modify_alias(self.current_peer.ip(), Some(self.new_alias.clone()), &mut KNOWN_PEERS.write().unwrap());
@@ -275,7 +275,9 @@ impl eframe::App for MainWindow {
                 });
 
                 ui.menu_button("Add", |ui| {
-                    ui.add_enabled(!self.thinking, egui::TextEdit::singleline(&mut self.new_peer));
+                    if ui.add_enabled(!self.thinking, egui::TextEdit::singleline(&mut self.new_peer)).gained_focus() {
+                        self.new_peer.clear();
+                    };
                     ui.horizontal(|ui| {
                         #[allow(unused_assignments)]
                         let mut allowed = true;
