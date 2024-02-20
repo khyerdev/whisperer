@@ -1,0 +1,10 @@
+#!/usr/bin/env xdg-open
+[Desktop Entry]
+
+Type=Application
+Version=1.0.0
+Name=Whisperer
+Comment=LAN Direct Messenger
+Exec=$HOME/Programming/whisperer/target/release/whisperer
+Icon=$HOME/Programming/whisperer/assets/tcp.png
+Categories=Internet;

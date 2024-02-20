@@ -4,7 +4,7 @@ mod tcp;
 mod msg;
 mod comms;
 
-use std::{sync::{mpsc, RwLock}, thread};
+use std::{sync::{mpsc, RwLock, Arc}, thread};
 use eframe::egui;
 use once_cell::sync::Lazy;
 
@@ -480,6 +480,14 @@ fn main() {
         let mut win = egui::ViewportBuilder::default();
         win.min_inner_size = Some(egui::vec2(WIN_SIZE[0], WIN_SIZE[1]));
         win.inner_size = Some(egui::vec2(WIN_SIZE[0], WIN_SIZE[1]));
+
+        let data = include_bytes!("../assets/tcp.ico");
+        let icon = egui::IconData {
+            rgba: data.to_vec(),
+            width: 32,
+            height: 32
+        };
+        win.icon = Some(Arc::new(icon));
 
         options.viewport = win;
     }
