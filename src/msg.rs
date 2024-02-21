@@ -96,6 +96,7 @@ impl Message {
     }
 }
 
+#[derive(Clone)]
 pub struct ChatHistory {
     peer: Recipient,
     history: Vec<Message>
