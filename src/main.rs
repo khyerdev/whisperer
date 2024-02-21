@@ -3,6 +3,7 @@ mod kem;
 mod tcp;
 mod msg;
 mod comms;
+mod save;
 
 use std::{sync::{mpsc, RwLock, Arc}, thread};
 use eframe::egui;
@@ -405,7 +406,6 @@ impl eframe::App for MainWindow {
                                     "You" => egui::Color32::LIGHT_BLUE,
                                     _ => egui::Color32::LIGHT_RED
                                 };
-        
                                 let author = match msg::find_alias(msg.author(), unsafe {&KNOWN_PEERS.read().unwrap()}) {
                                     Some(alias) => alias,
                                     None => msg.author()
@@ -465,7 +465,10 @@ impl eframe::App for MainWindow {
     }
 
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
-        // TODO: save to a file
+        let peers = unsafe {KNOWN_PEERS.read().unwrap().clone()};
+        let histories = self.chat_history.clone();
+
+        save::set_data(peers, histories);
     }
 }
 
