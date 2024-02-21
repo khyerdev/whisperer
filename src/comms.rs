@@ -11,7 +11,7 @@ use std::{
 };
 use eframe::egui::Context;
 
-const KEY_SIZE: usize = 16;
+pub const KEY_SIZE: usize = 16;
 
 pub fn request_handler_thread(win_ctx: Context, sender: mpsc::Sender<Event>) {
     let port = TcpListener::bind("0.0.0.0:9998").unwrap();
