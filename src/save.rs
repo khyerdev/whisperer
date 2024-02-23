@@ -14,6 +14,7 @@ pub fn set_data(recipient_list: Vec<msg::Recipient>, chat_history: Vec<msg::Chat
         let mut buf: Vec<u8> = Vec::new();
 
         for rec in recipient_list.iter() {
+            if &rec.ip() == "None" {continue}
             let mut entry = String::new();
             entry.push_str(&rec.ip());
             entry.push('\0');
@@ -39,6 +40,7 @@ pub fn set_data(recipient_list: Vec<msg::Recipient>, chat_history: Vec<msg::Chat
         let mut buf: Vec<u8> = Vec::new();
 
         for history in chat_history.iter() {
+            if &history.peer().ip() == "None" {continue}
             let mut entry = String::new();
             entry.push_str(&history.peer().ip());
             entry.push('\n');
@@ -68,8 +70,8 @@ fn root_path() -> Option<PathBuf> {
     }
     #[cfg(target_os = "windows")]
     {
-        let home = var("LOCALAPPDATA").unwrap();
-        path = Some(PathBuf::from(format!("{home}/whisperer")));
+        let local = var("LOCALAPPDATA").unwrap();
+        path = Some(PathBuf::from(format!("{local}/whisperer")));
     }
     path
 }
