@@ -94,6 +94,15 @@ impl Message {
     pub fn content(&self) -> String {
         self.content.clone()
     }
+    pub fn clean_nulls(&mut self) {
+        let mut cleaned = String::new();
+        for byte in self.content().bytes() {
+            if byte != 0 {
+                cleaned.push(byte as char)
+            }
+        }
+        self.content = cleaned;
+    }
 }
 
 #[derive(Clone)]
