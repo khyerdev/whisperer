@@ -41,16 +41,24 @@ impl MainWindow {
         let send = sender.clone();
         thread::spawn(move || comms::request_handler_thread(ctx, send));
 
-        let mut starting_peers = Vec::new();
-        starting_peers.push(msg::Recipient::from("None"));
-
-        let first = starting_peers.first().unwrap();
+        let first = unsafe {KNOWN_PEERS.read().unwrap().clone()};
+        let first = first.first().unwrap();
         let first = first.clone();
 
         let mut starting_history: Vec<msg::ChatHistory> = Vec::new();
-        starting_history.push(msg::ChatHistory::new(msg::Recipient::from("None")));
+        starting_history.push(msg::ChatHistory::new(first.clone()));
 
-        // TODO: read from a file
+        println!("LOAD DATA");
+        let (peers, histories) = save::get_data();
+        unsafe {
+            let mut wlock = KNOWN_PEERS.write().unwrap();
+            for peer in peers.iter() {
+                wlock.push(peer.clone());
+            }
+        }
+        for history in histories.iter() {
+            starting_history.push(history.clone());
+        }
 
         println!("INIT APP");
         Self {
@@ -72,12 +80,13 @@ impl eframe::App for MainWindow {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         match self.listener.try_recv() {
             Ok(event) => match event {
-                Event::IncomingMsg(msg) => {
+                Event::IncomingMsg(mut msg) => {
                     println!("MESSAGE RECEIVED ON FRONTEND");
                     let mut retries = 0;
                     'retry_loop: loop {
                         for history in self.chat_history.iter_mut() {
                             if history.peer().ip() == msg.author() {
+                                msg.clean_nulls();
                                 history.push_msg(msg.clone());
                                 println!("MESSAGE PROCESSED");
                                 break 'retry_loop;
