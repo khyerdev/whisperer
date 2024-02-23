@@ -466,10 +466,12 @@ impl eframe::App for MainWindow {
     }
 
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        println!("SAVE DATA");
         let peers = unsafe {KNOWN_PEERS.read().unwrap().clone()};
         let histories = self.chat_history.clone();
 
         save::set_data(peers, histories);
+        println!("CLOSE APP");
     }
 }
 
@@ -486,8 +488,9 @@ fn main() {
         win.inner_size = Some(egui::vec2(WIN_SIZE[0], WIN_SIZE[1]));
 
         let data = include_bytes!("../assets/tcp.ico");
+        let data = image::load_from_memory_with_format(data, image::ImageFormat::Ico).unwrap();
         let icon = egui::IconData {
-            rgba: data.to_vec(),
+            rgba: data.as_bytes().to_vec(),
             width: 32,
             height: 32
         };
