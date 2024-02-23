@@ -198,6 +198,7 @@ impl eframe::App for MainWindow {
             let height = ui.available_height();
 
             #[allow(unused_assignments)] // guh
+            #[allow(unused_mut)] // guh
             let mut os = format!("{:?}", ctx.os());
             #[cfg(target_os = "linux")]
             {
