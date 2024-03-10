@@ -25,7 +25,7 @@ Whilst being a tiny application made by a 15-year old, Whisperer has more than 2
 - If your GLIBC is up-to-date, the installation process is very easy:
 
   1. On the [main github page of this repo](https://github.com/OSCH2008/whisperer), navigate to the [releases page](https://github.com/OSCH2008/whisperer/releases) or click the latest version under the releases section.
-  2. Find and click the download link for `whisperer.tar.gz`.
+  2. Find and click the download link for `whisperer-linux.tar.gz`.
   3. In your terminal of choice or file manager of choice, navigate to your browser's download directory.
   4. Extract the file you downloaded. You can use a GUI based file extractor, or you can use the terminal by running `mkdir whisperer; tar -xzf whisperer.tar.gz -C whisperer; cd whisperer`.
   5. Run `sudo ./install.sh` to move the files to the correct spots. Ignore any errors yapping about "file already exits". You can either move uninstall.sh to a memorable directory, or you can delete it.
@@ -42,7 +42,7 @@ Whilst being a tiny application made by a 15-year old, Whisperer has more than 2
 - On Windows 10/11, the app is guarunteed to work out-of-the-box. The installation process is simple:
 
   1. On the [main github page of this repo](https://github.com/OSCH2008/whisperer), navigate to the [releases page](https://github.com/OSCH2008/whisperer/releases) or click the latest version under the releases section.
-  2. Find and click the download link for `whisperer.exe`.
+  2. Find and click the download link for `whisperer-windows.exe`.
   3. The app will work as intended simply by running it. You can optionally move it to another folder, pin it to your start menu/taskbar, and/or make a shortcut for it on the desktop.
 
 Whisperer is currently not supported on MacOS and will not be for the forseeable future. I do not own any apple products and I do not plan on owning any. Plus, running a Mac VM is next to impossible for me. You can try to compile it yourself on mac, but I have only set up conditional compiling for Windows and Linux.
