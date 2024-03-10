@@ -1,5 +1,6 @@
 #!/usr/bin/bash
 
+mkdir $HOME/.local/share/applications
 sudo mkdir /usr/local/bin/whisperer
 sudo mv ./tcp.png /usr/local/bin/whisperer/tcp.png
 sudo mv ./whisperer /usr/local/bin/whisperer/whisperer
